@@ -21,11 +21,10 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-
 package org.hibernate.metamodel;
 
-import java.util.Map;
 import javax.persistence.SharedCacheMode;
+import java.util.Map;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.cache.spi.access.AccessType;

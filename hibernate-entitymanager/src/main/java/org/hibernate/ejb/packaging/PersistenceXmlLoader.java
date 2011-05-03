@@ -59,7 +59,10 @@ import org.xml.sax.SAXParseException;
  *
  * @author <a href="mailto:bill@jboss.org">Bill Burke</a>
  * @author Emmanuel Bernard
+ *
+ * @deprecated Use {@link org.hibernate.ejb.internal.boot.PersistenceXmlParser} instead.
  */
+@Deprecated
 public final class PersistenceXmlLoader {
 
     private static final EntityManagerMessageLogger LOG = Logger.getMessageLogger(EntityManagerMessageLogger.class,

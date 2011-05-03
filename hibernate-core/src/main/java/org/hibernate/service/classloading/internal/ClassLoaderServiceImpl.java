@@ -41,6 +41,8 @@ import org.hibernate.service.classloading.spi.ClassLoadingException;
  * @author Steve Ebersole
  */
 public class ClassLoaderServiceImpl implements ClassLoaderService {
+	public static final ClassLoaderServiceImpl DEFAULT = new ClassLoaderServiceImpl();
+
 	private final LinkedHashSet<ClassLoader> classLoadingClassLoaders;
 	private final ClassLoader resourcesClassLoader;
 

@@ -30,13 +30,16 @@ import java.util.Set;
 import javax.persistence.spi.PersistenceUnitTransactionType;
 
 /**
- * Simple represenation of persistence.xml
+ * Simple model of a {@code <persistence-unit/>} element in a {@code persistence.xml} file.
  *
  * Object used by JBoss EJB 3 for persistence.xml parsing
  * Object used by Hibernate OGM as well, consider this some kind of exposed service at the SPI level
  *
  * @author <a href="mailto:bill@jboss.org">Bill Burke</a>
+ *
+ * @deprecated Use {@link org.hibernate.ejb.internal.boot.PersistenceUnit} instead.
  */
+@Deprecated
 public class PersistenceMetadata {
 
 	private String name;
