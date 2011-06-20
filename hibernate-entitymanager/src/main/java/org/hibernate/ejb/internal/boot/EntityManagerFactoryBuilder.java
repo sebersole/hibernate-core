@@ -44,8 +44,6 @@ import org.hibernate.ejb.AvailableSettings;
 import org.hibernate.ejb.EntityManagerFactoryImpl;
 import org.hibernate.ejb.event.JpaIntegrator;
 import org.hibernate.ejb.internal.EntityManagerMessageLogger;
-import org.hibernate.ejb.util.ConfigurationHelper;
-import org.hibernate.engine.SessionFactoryImplementor;
 import org.hibernate.engine.transaction.internal.jdbc.JdbcTransactionFactory;
 import org.hibernate.engine.transaction.internal.jta.CMTTransactionFactory;
 import org.hibernate.integrator.spi.IntegratorService;
