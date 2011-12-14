@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<topic xmlns="http://docbook.org/ns/docbook" version="5.0" xml:lang="en"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/docbook.rng">
+    <info>
+        <title>Entity Identifiers</title>
+        <abstract>
+            <para>
+                Discussion of all aspects of defining identifiers for entities, including generation strategies.
+            </para>
+        </abstract>
+    </info>
+
+    <para>
+        Entities <emphasis>must</emphasis> define a means of identifying unique rows in the underlying database table.
+        In most cases this would be served by the column or columns making up the table's primary key.
+    </para>
+
+    <para>
+        Usually the entity will also contain attribute or attributes to hold the unique identifier for the instance.
+    </para>
+    <important>
+        <para>
+            Although not strictly required in Hibernate, such support is semi-deprecated and should not be used.  JPA
+            does require the entity define the attribute or attributes to contain its identifier.
+        </para>
+    </important>
+</topic>

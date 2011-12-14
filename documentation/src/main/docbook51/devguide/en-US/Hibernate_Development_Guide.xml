@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+
+<assembly xmlns="http://docbook.org/ns/docbook" xml:lang="en" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/assembly.rng">
+    <info>
+        <title>Hibernate Dev Guide Assembly</title>
+        <abstract>
+            <para>
+                The DocBook assembly for the Hibernate Developer Guide
+            </para>
+        </abstract>
+    </info>
+
+    <resources xml:base="topics/metamodel">
+        <resource xml:id="identifiers" fileref="Identifiers"/>
+        <resource xml:id="identifierGenerators" fileref="Identifier_Strategies.xml"/>
+        <resource xml:id="attributes" fileref="Attributes.xml"/>
+        <resource xml:id="types" fileref="Types.xml"/>
+    </resources>
+
+    <structure xml:id="dev-guide">
+
+        <module>
+            <output renderas="chapter"/>
+            <info>
+                <title>Metadata</title>
+                <subtitle>Mapping persistent data</subtitle>
+            </info>
+        </module>
+        <output renderas="book"/>
+
+    </structure>
+
+</assembly>

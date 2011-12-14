@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+
+<topic xmlns="http://docbook.org/ns/docbook" version="5.0" xml:lang="en"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/docbook.rng">
+
+    <info>
+        <title>Metadata</title>
+        <subtitle>Mapping persistent data</subtitle>
+    </info>
+
+    <para>
+        Hibernate, like all Object/Relational Mapping tools, needs information about how the application's object model
+        corresponds to the relational model.  You might hear this process referred to as mapping.  The information
+        given to Hibernate is called the mapping metadata, or sometimes just metadata.
+    </para>
+</topic>

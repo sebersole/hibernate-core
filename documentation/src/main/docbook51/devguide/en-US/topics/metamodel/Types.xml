@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+
+<topic xmlns="http://docbook.org/ns/docbook" version="5.0" xml:lang="en"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/docbook.rng">
+    <info>
+        <title>Basic Types</title>
+        <abstract>
+            <para>Discusses basic attribute type mappings.</para>
+        </abstract>
+    </info>
+</topic>

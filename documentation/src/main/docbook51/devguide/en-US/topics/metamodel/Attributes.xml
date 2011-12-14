@@ -1,0 +1,98 @@
+<?xml version="1.0"?>
+
+<topic xmlns="http://docbook.org/ns/docbook" version="5.0" xml:lang="en"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/docbook.rng">
+    <info>
+        <title>Attribute Mappings</title>
+        <abstract>
+            <para>
+                Discussion of mapping entity attributes
+            </para>
+        </abstract>
+    </info>
+
+    <para>
+        Attributes hold the atomic state of entities: the simple values, the associations, etc.
+    </para>
+
+    <section>
+        <info>
+            <title>Specifying persistent attributes</title>
+        </info>
+
+        <para>
+            In XML mappings (whether
+            <filename>orm.xml</filename>
+            or<filename>hbm.xml</filename>) persistent attributes are
+            identified in an opt-in fashion, meaning that only attributes explicitly named in the XML are considered
+            persistent. Annotations treat the definition of persistent attributes as opt-out, meaning that
+            all (non identifier) attributes defined on the entity class are considered persistence unless they are
+            annotated with the
+            <interfacename>javax.persistence.Transient</interfacename>
+            annotation.
+        </para>
+
+        <para>
+            Attributes defined as part of a non-persistent super class are handled differently between Hibernate
+            <filename>hbm.xml</filename>
+            mappings and JPA (
+            <filename>orm.xml</filename>
+            as well as annotations) mappings.
+            In
+            <filename>hbm.xml</filename>
+            mappings all super class members can be referenced directly. JPA
+            introduced the
+            <interfacename>javax.persistence.MappedSuperclass</interfacename>
+            annotation for this scenario.
+            In JPA, you would need to annotate the non-persistent super class with the
+            <interfacename>javax.persistence.MappedSuperclass</interfacename>
+            annotation. The super class's
+            attributes then follow the same opt-out approach discussed above.
+        </para>
+    </section>
+
+    <section>
+        <info>
+            <title>Access</title>
+        </info>
+
+        <para>
+            How attributes are identified, named and accessed is determined by an<firstterm>access strategy</firstterm>.
+            The 2 most common access strategies are field-based and property-based. In field-based access the Java field
+            is directly accessed. Property-based access uses JavaBean-style property conventions to define getter and
+            setter methods for the attributes.
+        </para>
+
+        <para>
+            Hibernate also allows the application developer develop custom access strategies. The strategy is defined
+            by the
+            <interfacename>org.hibernate.property.PropertyAccessor</interfacename>
+            contract.
+        </para>
+
+        <para>
+            Which access to use for a particular attribute is defined in the metadata for the attribute. In JPA,
+            developers would use the
+            <interfacename>javax.persistence.Access</interfacename>
+            annotations.
+            <!-- todo : add example -->
+            <interfacename>javax.persistence.Access</interfacename>
+            only accepts the
+            <classname>javax.persistence.AccessType</classname>. To allow full access to
+            the
+            <interfacename>org.hibernate.property.PropertyAccessor</interfacename>
+            contract
+            Hibernate provides the custom
+            <interfacename>org.hibernate.annotations.AccessType</interfacename>
+            annotation.
+        </para>
+    </section>
+
+    <section>
+        <info>
+            <title>Type</title>
+        </info>
+        <para></para>
+    </section>
+</topic>

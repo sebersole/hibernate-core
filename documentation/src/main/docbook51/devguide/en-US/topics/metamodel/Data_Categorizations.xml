@@ -1,0 +1,545 @@
+<?xml version="1.0"?>
+
+<topic xmlns="http://docbook.org/ns/docbook" version="5.0"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:xi="http://www.w3.org/2001/XInclude"
+       xsi:schemaLocation="http://docbook.org/ns/docbook http://www.docbook.org/xml/5.1b4/rng/docbook.rng">
+    <info>
+        <title>Data categorizations</title>
+        <abstract>
+            <para>
+                Discusses ways Hibernate categorizes data types and introduces the Hibernate type system.
+            </para>
+        </abstract>
+    </info>
+
+    <para>
+        As an Object/Relational Mapping solution, Hibernate deals with both the Java and JDBC representations of
+        application data.  An online catalog application, for example, most likely has a <classname>Product</classname>
+        entity with a number of attributes such as a <literal>sku</literal>, <literal>name</literal>, etc.  For these
+        individual attributes, Hibernate must be able to read the values out of the database and write them back.  This
+        is the main function of a <emphasis>Hibernate type</emphasis>, which is an implementation of the
+        <interfacename>org.hibernate.type.Type</interfacename> interface.  In addition, a
+        <emphasis>Hibernate type</emphasis> describes various aspects of behavior of the Java type such as "how is
+        equality checked?" or "how are values cloned?".
+    </para>
+    <note>
+        <info>
+            <title>Usage of the word <wordasword>type</wordasword></title>
+        </info>
+        <para>
+            A Hibernate <emphasis>type</emphasis> is neither a Java type nor a SQL datatype. It provides information
+            about both of these.
+        </para>
+        <para>
+            When you encounter the term <wordasword>type</wordasword> in regards to Hibernate, it may refer to the
+            Java type, the JDBC type, or the Hibernate type, depending on context.
+        </para>
+    </note>
+    <para>
+        Hibernate categorizes types into two high-level groups:
+    </para>
+    <itemizedlist>
+        <listitem>
+            <para>
+                <emphasis>Entity types</emphasis> - Application entities are represented by an entity type.
+            </para>
+        </listitem>
+        <listitem>
+            <para>
+                <emphasis>Value types</emphasis> - The non-entity attributes of an entity are represented by value
+                types.
+            </para>
+        </listitem>
+    </itemizedlist>
+
+    <para>
+        Hibernate categorizes types into two high-level groups: value types (see <xref linkend="types-value"/>) and
+        entity types (see <xref linkend="types-entity"/>).
+    </para>
+
+    <section xml:id="types-value">
+        <title>Value types</title>
+
+        <para>
+            The main distinguishing characteristic of a value type is the fact that they do not define their own
+            lifecycle.  We say that they are "owned" by something else (specifically an entity, as we will see later)
+            which defines their lifecycle.  Value types are further classified into 3 sub-categories: basic types (see
+            <xref linkend="types-value-basic"/>), composite types (see <xref linkend="types-value-composite"/>)
+            amd collection types (see <xref linkend="types-value-collection"/>).
+        </para>
+
+        <section xml:id="types-value-basic">
+            <title>Basic value types</title>
+            <para>
+                The norm for basic value types is that they map a single database value (column) to a single,
+                non-aggregated Java type.  Hibernate provides a number of built-in basic types, which follow the
+                natural mappings recommended in the JDBC specifications. You can override these mappings and provide
+                and use alternative mappings. These topics are discussed further on.
+            </para>
+
+            <table>
+                <caption>Basic Type Mappings</caption>
+                <thead>
+                    <tr>
+                        <td>Java type</td>
+                        <td>JDBC type</td>
+                        <td>Hibernate type</td>
+                        <td>Type registry</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Numeric types -->
+                    <tr>
+                        <td>byte, java.lang.Byte</td>
+                        <td>TINYINT</td>
+                        <td>org.hibernate.type.ByteType</td>
+                        <td>byte, java.lang.Byte</td>
+                    </tr>
+                    <tr>
+                        <td>short, java.lang.Short</td>
+                        <td>SMALLINT</td>
+                        <td>org.hibernate.type.ShortType</td>
+                        <td>short, java.lang.Short</td>
+                    </tr>
+                    <tr>
+                        <td>int, java.lang.Integer</td>
+                        <td>INTEGER</td>
+                        <td>org.hibernate.type.IntegerTypes</td>
+                        <td>int, java.lang.Integer</td>
+                    </tr>
+                    <tr>
+                        <td>long, java.lang.Long</td>
+                        <td>BIGINT</td>
+                        <td>org.hibernate.type.LongType</td>
+                        <td>long, java.lang.Long</td>
+                    </tr>
+                    <tr>
+                        <td>float, java.lang.Float</td>
+                        <td>FLOAT</td>
+                        <td>org.hibernate.type.FloatType</td>
+                        <td>float, java.lang.Float</td>
+                    </tr>
+                    <tr>
+                        <td>double, java.lang.Double</td>
+                        <td>DOUBLE</td>
+                        <td>org.hibernate.type.DoubleType</td>
+                        <td>double, java.lang.Double</td>
+                    </tr>
+                    <tr>
+                        <td>java.math.BigInteger</td>
+                        <td>NUMERIC</td>
+                        <td>org.hibernate.type.BigIntegerType</td>
+                        <td>big_integer</td>
+                    </tr>
+                    <tr>
+                        <td>java.math.BigDecimal</td>
+                        <td>NUMERIC</td>
+                        <td>org.hibernate.type.BigDecimalType</td>
+                        <td>big_decimal, java.math.bigDecimal</td>
+                    </tr>
+
+                    <!-- boolean types -->
+                    <tr>
+                        <td>boolean</td>
+                        <td>BIT</td>
+                        <td>org.hibernate.type.BooleanType</td>
+                        <td>boolean, java.lang.Boolean</td>
+                    </tr>
+                    <tr>
+                        <td>boolean</td>
+                        <td>INTEGER (0 is false, 1 is true)</td>
+                        <td>org.hibernate.type.NumericBooleanType</td>
+                        <td>numeric_boolean</td>
+                    </tr>
+                    <tr>
+                        <td>boolean</td>
+                        <td>CHAR ('N'/'n' is false, 'Y'/'y' is true. The uppercase value is written to the
+                            database)
+                        </td>
+                        <td>org.hibernate.type.YesNoType</td>
+                        <td>yes_no</td>
+                    </tr>
+                    <tr>
+                        <td>boolean</td>
+                        <td>CHAR ('F'/'f' is false, 'T'/'t' is true. The uppercase value is written to the
+                            database)
+                        </td>
+                        <td>org.hibernate.type.TrueFalseType</td>
+                        <td>true_false</td>
+                    </tr>
+
+                    <!-- date/time -->
+                    <tr>
+                        <td>java.sql.Timestamp</td>
+                        <td>TIMESTAMP</td>
+                        <td>org.hibernate.type.TimestampType</td>
+                        <td>timestamp, java.sql.Timestamp</td>
+                    </tr>
+                    <tr>
+                        <td>java.sql.Time</td>
+                        <td>TIME</td>
+                        <td>org.hibernate.type.TimeType</td>
+                        <td>time, java.sql.Time</td>
+                    </tr>
+                    <tr>
+                        <td>java.sql.Date</td>
+                        <td>DATE</td>
+                        <td>org.hibernate.type.DateType</td>
+                        <td>date, java.sql.Date</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.Calendar</td>
+                        <td>TIMESTAMP</td>
+                        <td>org.hibernate.type.CalendarType</td>
+                        <td>calendar, java.util.Calendar</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.Calendar</td>
+                        <td>DATE</td>
+                        <td>org.hibernate.type.CalendarDateType</td>
+                        <td>calendar_date</td>
+                    </tr>
+
+                    <!-- character data -->
+                    <tr>
+                        <td>java.lang.String</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.StringType</td>
+                        <td>string, java.lang.String</td>
+                    </tr>
+                    <tr>
+                        <td>java.lang.String</td>
+                        <td>CLOB</td>
+                        <td>org.hibernate.type.MaterializedClob</td>
+                        <td>materialized_clob</td>
+                    </tr>
+                    <tr>
+                        <td>java.lang.String</td>
+                        <td>LONGVARCHAR</td>
+                        <td>org.hibernate.type.TextType</td>
+                        <td>text</td>
+                    </tr>
+                    <tr>
+                        <td>java.sql.Clob</td>
+                        <td>CLOB</td>
+                        <td>org.hibernate.type.ClobType</td>
+                        <td>clob, java.sql.Clob</td>
+                    </tr>
+                    <tr>
+                        <td>char, java.lang.Character</td>
+                        <td>CHAR</td>
+                        <td>org.hibernate.type.CharacterType</td>
+                        <td>char, java.lang.Character</td>
+                    </tr>
+                    <tr>
+                        <td>char[]</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.CharArrayType</td>
+                        <td>characters, char[]</td>
+                    </tr>
+                    <tr>
+                        <td>java.lang.Character[]</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.CharacterArrayType</td>
+                        <td>wrapper-characters, Character[], java.lang.Character[]</td>
+                    </tr>
+
+                    <!-- Binary data -->
+                    <tr>
+                        <td>java.sql.Blob</td>
+                        <td>BLOB</td>
+                        <td>org.hibernate.type.BlobType</td>
+                        <td>blog, java.sql.Blob</td>
+                    </tr>
+                    <tr>
+                        <td>byte[]</td>
+                        <td>VARBINARY</td>
+                        <td>org.hibernate.type.BinaryType</td>
+                        <td>binary, byte[]</td>
+                    </tr>
+                    <tr>
+                        <td>byte[]</td>
+                        <td>LONGVARBINARY</td>
+                        <td>org.hibernate.type.ImageType</td>
+                        <td>image</td>
+                    </tr>
+                    <tr>
+                        <td>byte[]</td>
+                        <td>BLOB</td>
+                        <td>org.hibernate.type.MaterializedBlobType</td>
+                        <td>materized_blob</td>
+                    </tr>
+                    <tr>
+                        <td>java.lang.Byte[]</td>
+                        <td>VARBINARY</td>
+                        <td>org.hibernate.type.WrapperBinaryType</td>
+                        <td>wrapper-binary</td>
+                    </tr>
+
+                    <!-- Misc -->
+                    <tr>
+                        <td>java.util.Currency</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.CurrencyType</td>
+                        <td>currency, java.util.Currency</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.Locale</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.LocaleType</td>
+                        <td>locale, java.utility.locale</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.TimeZone</td>
+                        <td>VARCHAR (using the TimeZone ID)</td>
+                        <td>org.hibernate.type.TimeZoneType</td>
+                        <td>timezone, java.util.TimeZone</td>
+                    </tr>
+                    <tr>
+                        <td>java.net.URL</td>
+                        <td>VARCHAR</td>
+                        <td>org.hibernate.type.UrlType</td>
+                        <td>url, java.net.URL</td>
+                    </tr>
+                    <tr>
+                        <td>java.lang.Class</td>
+                        <td>VARCHAR (using the class name)</td>
+                        <td>org.hibernate.type.ClassType</td>
+                        <td>class, java.lang.Class</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.UUID</td>
+                        <td>BINARY</td>
+                        <td>org.hibernate.type.UUIDBinaryType</td>
+                        <td>uuid-binary, java.util.UUID</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.UUID</td>
+                        <td>CHAR, can also read VARCHAR</td>
+                        <td>org.hibernate.type.UUIDCharType</td>
+                        <td>uuid-char</td>
+                    </tr>
+                    <tr>
+                        <td>java.util.UUID</td>
+                        <td>PostgreSQL UUID, through Types#OTHER, which complies to the PostgreSQL JDBC driver
+                            definition
+                        </td>
+                        <td>org.hibernate.type.PostgresUUIDType</td>
+                        <td>pg-uuid</td>
+                    </tr>
+                    <tr>
+                        <td>implementors of java.lang.Serializable</td>
+                        <td>VARBINARY</td>
+                        <td>org.hibernate.type.SerializableType</td>
+                        <td>Unlike the other value types, multiple instances of this type are registered. It is
+                            registered once under java.io.Serializable and additionally registered once each under
+                            the each specific java.io.Serializable implementation class name.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section xml:id="types-value-composite">
+            <title>Composite types</title>
+            <note>
+                <para>
+                    The Java Persistence API calls these embedded types, while Hibernate traditionally called them
+                    components.  Just be aware that both terms are used and mean the same thing in the scope of
+                    discussing Hibernate.
+                </para>
+            </note>
+            <para>
+                Components represent aggregations of values into a single Java type.  For example, you might have
+                an Address class that aggregates street, city, state, etc information or a Name class that
+                aggregates the parts of a person's Name.  In many ways a component looks exactly like an entity.  They
+                are both (generally speaking) classes written specifically for the application.  They both might have
+                references to other application-specific classes, as well as to collections and simple JDK types.  As
+                discussed before, the only distinguishing factory is the fact that a component does not own its own
+                lifecycle nor does it define an identifier.
+            </para>
+        </section>
+
+        <section xml:id="types-value-collection">
+            <title>Collection types</title>
+            <important>
+                <para>
+                    It is critical understand that we mean the collection itself, not its contents.
+                    The contents of the collection can in turn be basic, component or entity types (though not
+                    collections), but the collection itself is owned.
+                </para>
+            </important>
+            <para>
+                Collections are covered elsewhere
+                <!-- todo : add relationship to collections stuff -->
+            </para>
+        </section>
+
+    </section>
+
+    <section xml:id="types-entity">
+        <title>Entity types</title>
+        <para>
+            The definition of entities is covered in detail elsewhere.  For the purpose of this discussion, it is
+            enough to say that entities are (generally application-specific) classes which correlate to rows in a
+            table.  Specifically they correlate to the row by means of a unique identifier.  Because of this unique
+            identifier, entities exist independently and define their own lifecycle.  As an example, when we delete
+            a <classname>Membership</classname>, both the <classname>User</classname> and <classname>Group</classname>
+            entities remain.
+            <note>
+                <para>
+                    This notion of entity independence can be modified by the application developer using the concept of
+                    cascades.  Cascades allow certain operations to continue (or "cascade") across an association from
+                    one entity to another.
+                    <!-- todo : add relationship to association cascading -->
+                </para>
+            </note>
+        </para>
+    </section>
+
+    <section xml:id="types-category-significance">
+        <title>Significance of type categories</title>
+        <para>
+            Why do we spend so much time categorizing the various types of types?  What is the significance of the
+            distinction?
+        </para>
+        <para>
+            The main categorization was between entity types and value types.  To review we said that entities, by
+            nature of their unique identifier, exist independently of other objects whereas values do not.  An
+            application cannot "delete" a Product sku; instead, the sku is removed when the Product itself is
+            deleted (obviously you can <emphasis>update</emphasis> the sku of that Product to null to make it
+            "go away", but even there the access is done through the Product).
+        </para>
+        <para>
+            Nor can you define an association <emphasis>to</emphasis> that Product sku.  You <emphasis>can</emphasis>
+            define an association to Product <emphasis>based on</emphasis> its sku, assuming sku is unique, but that
+            is totally different.
+        </para>
+    </section>
+
+    <section xml:id="types-custom">
+        <title>Custom types</title>
+        <para>
+            Hibernate makes it relatively easy for developers to create their own <emphasis>value</emphasis> types.  For
+            example, you might want to persist properties of type <classname>java.lang.BigInteger</classname> to
+            <literal>VARCHAR</literal> columns.  Custom types are not limited to mapping values to a single table
+            column.  So, for example, you might want to concatenate together <literal>FIRST_NAME</literal>,
+            <literal>INITIAL</literal> and <literal>SURNAME</literal> columns into a <classname>java.lang.String</classname>.
+        </para>
+
+        <para>
+            There are 3 approaches to developing a custom Hibernate type.  As a means of illustrating the different
+            approaches, lets consider a use case where we need to compose a <classname>java.math.BigDecimal</classname>
+            and <classname>java.util.Currency</classname> together into a custom <classname>Money</classname> class.
+        </para>
+
+        <section xml:id="types-custom-type">
+            <title>Custom types using <interfacename>org.hibernate.type.Type</interfacename></title>
+            <para>
+                The first approach is to directly implement the <interfacename>org.hibernate.type.Type</interfacename>
+                interface (or one of its derivatives).  Probably, you will be more interested in the more specific
+                <interfacename>org.hibernate.type.BasicType</interfacename> contract which would allow registration of
+                the type (see <xref linkend="types-registry"/>).  The benefit of this registration is that whenever
+                the metadata for a particular property does not specify the Hibernate type to use, Hibernate will
+                consult the registry for the exposed property type.  In our example, the property type would be
+                <classname>Money</classname>, which is the key we would use to register our type in the registry:
+            </para>
+
+            <example xml:id="types-custom-type-ex-definition">
+                <title>Defining and registering the custom Type</title>
+                <programlisting language="Java" role="JAVA"><xi:include href="extras/MoneyTypeExampleBasicTypeApproach.java" parse="text" /></programlisting>
+            </example>
+            <important>
+                <para>
+                    It is important that type registrations be done <emphasis>prior</emphasis> to adding mappings.
+                </para>
+            </important>
+        </section>
+
+        <section xml:id="types-custom-ut">
+            <title>Custom types using <interfacename>org.hibernate.usertype.UserType</interfacename></title>
+            <note>
+                <para>
+                    Both <interfacename>org.hibernate.usertype.UserType</interfacename> and
+                    <interfacename>org.hibernate.usertype.CompositeUserType</interfacename> were originally
+                    added to isolate user code from internal changes to the <interfacename>org.hibernate.type.Type</interfacename>
+                    interfaces.
+                </para>
+            </note>
+            <para>
+                The second approach is to use the <interfacename>org.hibernate.usertype.UserType</interfacename>
+                interface, which presents a somewhat simplified view of the <interfacename>org.hibernate.type.Type</interfacename>
+                interface.  Using a <interfacename>org.hibernate.usertype.UserType</interfacename>, our
+                <classname>Money</classname> custom type would look as follows:
+            </para>
+            <example xml:id="types-custom-ut-ex-definition">
+                <title>Defining the custom UserType</title>
+                <programlisting language="Java" role="JAVA"><xi:include href="extras/MoneyTypeExampleUserTypeApproach.java" parse="text" /></programlisting>
+            </example>
+            <para>
+                There is not much difference between the <interfacename>org.hibernate.type.Type</interfacename> example
+                and the <interfacename>org.hibernate.usertype.UserType</interfacename> example, but that is only because
+                of the snippets shown.  If you choose the <interfacename>org.hibernate.type.Type</interfacename> approach
+                there are quite a few more methods you would need to implement as compared to the
+                <interfacename>org.hibernate.usertype.UserType</interfacename>.
+            </para>
+        </section>
+
+        <section xml:id="types-custom-cut">
+            <title>Custom types using <interfacename>org.hibernate.usertype.CompositeUserType</interfacename></title>
+            <para>
+                The third and final approach is the use the
+                <interfacename>org.hibernate.usertype.CompositeUserType</interfacename> interface, which differs from
+                <interfacename>org.hibernate.usertype.UserType</interfacename> in that it gives us the ability to
+                provide Hibernate the information to handle the composition within the <classname>Money</classname>
+                class (specifically the 2 attributes).  This would give us the capability, for example, to reference
+                the <literal>amount</literal> attribute in an HQL query.  Using a
+                <interfacename>org.hibernate.usertype.CompositeUserType</interfacename>, our
+                <classname>Money</classname> custom type would look as follows:
+            </para>
+
+            <example xml:id="types-custom-cut-ex-definition">
+                <title>Defining the custom CompositeUserType</title>
+                <programlisting language="Java" role="JAVA"><xi:include href="extras/MoneyTypeExampleCompositeUserTypeApproach.java" parse="text" /></programlisting>
+            </example>
+        </section>
+
+    </section>
+
+    <section xml:id="types-registry">
+        <title>Type registry</title>
+        <para>
+            Internally Hibernate manages basic types as part of a registry.  When it needs to resolve the specific
+            <interfacename>org.hibernate.type.Type</interfacename> to use in certain situations a lookup against this
+            registry is performed.
+        </para>
+        <note>
+            <para>
+                <classname>org.hibernate.type.BasicTypeRegistry</classname> is the name of the basic type registry
+                class.
+            </para>
+        </note>
+        <para>
+            Hibernate also provides a way for applications to add additional basic type registrations as well as to
+            override the standard basic type registrations via the <methodname>registerTypeOverride</methodname> method
+            of the <classname>org.hibernate.cfg.Configuration</classname> class when bootstrapping Hibernate.  Here is
+            an example that registers a custom <classname>SuperDuperStringType</classname> type.
+        </para>
+        <example xml:id="type-registry-override-ex">
+            <title>Overriding the standard <classname>StringType</classname></title>
+            <programlisting language="Java" role="JAVA"><xi:include href="extras/registerTypeOverrideExample.java" parse="text" /></programlisting>
+        </example>
+        <para>
+            The argument to <methodname>registerTypeOverride</methodname> is a <interfacename>org.hibernate.type.BasicType</interfacename>
+            which is a specialization of the <interfacename>org.hibernate.type.Type</interfacename> we saw before.  It
+            adds a single method:
+        </para>
+        <example>
+            <title>Snippet from BasicType.java</title>
+            <programlisting language="Java" role="JAVA"><xi:include href="extras/BasicTypeSnippet.java" parse="text" /></programlisting>
+        </example>
+    </section>
+
+
+</topic>
