@@ -33,7 +33,6 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.engine.jdbc.spi.JdbcResourceRegistry;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
-import org.hibernate.engine.jdbc.spi.LogicalConnectionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
 
 /**
@@ -66,11 +65,11 @@ public abstract class AbstractStatementProxyHandler extends AbstractProxyHandler
 	}
 
 	protected JdbcServices getJdbcServices() {
-		return getConnectionProxy().getJdbcServices();
+		return getConnectionProxy().jdbcServices();
 	}
 
 	protected JdbcResourceRegistry getResourceRegistry() {
-		return getConnectionProxy().getResourceRegistry();
+		return getConnectionProxy().jdbcResourceRegistry();
 	}
 
 	protected Statement getStatement() {
@@ -126,7 +125,7 @@ public abstract class AbstractStatementProxyHandler extends AbstractProxyHandler
 		catch ( InvocationTargetException e ) {
 			Throwable realException = e.getTargetException();
 			if ( SQLException.class.isInstance( realException ) ) {
-				throw connectionProxyHandler.getJdbcServices().getSqlExceptionHelper()
+				throw connectionProxyHandler.jdbcServices().getSqlExceptionHelper()
 						.convert( ( SQLException ) realException, realException.getMessage() );
 			}
 			else {
@@ -156,9 +155,9 @@ public abstract class AbstractStatementProxyHandler extends AbstractProxyHandler
 
 	private void explicitClose(Statement proxy) {
 		if ( isValid() ) {
-			LogicalConnectionImplementor lc = getConnectionProxy().getLogicalConnection();
+			PhysicalConnectionSource source = getConnectionProxy().physicalConnectionSource();
 			getResourceRegistry().release( proxy );
-			lc.afterStatementExecution();
+			source.statementExecuted();
 		}
 	}
 

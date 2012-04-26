@@ -21,7 +21,7 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.engine2;
+package org.hibernate.engine2.jdbc.database.spi;
 
 /**
  * Models what databases term a session, namely the resources represented by a JDBC {@code Connection} including
@@ -30,4 +30,5 @@ package org.hibernate.engine2;
  * @author Steve Ebersole
  */
 public interface JdbcSession {
+	public LogicalConnection getLogicalConnection();
 }

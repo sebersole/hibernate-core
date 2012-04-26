@@ -37,7 +37,6 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.engine.jdbc.spi.JdbcResourceRegistry;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
-import org.hibernate.engine.jdbc.spi.LogicalConnectionImplementor;
 import org.hibernate.engine.jdbc.spi.NonDurableConnectionObserver;
 import org.hibernate.internal.CoreMessageLogger;
 
@@ -50,15 +49,17 @@ public class ConnectionProxyHandler
 		extends AbstractProxyHandler
 		implements InvocationHandler, NonDurableConnectionObserver {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       ConnectionProxyHandler.class.getName());
+    private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			ConnectionProxyHandler.class.getName()
+	);
 
-	private LogicalConnectionImplementor logicalConnection;
+	private PhysicalConnectionSource physicalConnectionSource;
 
-	public ConnectionProxyHandler(LogicalConnectionImplementor logicalConnection) {
-		super( logicalConnection.hashCode() );
-		this.logicalConnection = logicalConnection;
-		this.logicalConnection.addObserver( this );
+	public ConnectionProxyHandler(PhysicalConnectionSource physicalConnectionSource) {
+		super( physicalConnectionSource.hashCode() );
+		this.physicalConnectionSource = physicalConnectionSource;
+		this.physicalConnectionSource.addObserver( this );
 	}
 
 	/**
@@ -66,9 +67,9 @@ public class ConnectionProxyHandler
 	 *
 	 * @return the logical connection
 	 */
-	protected LogicalConnectionImplementor getLogicalConnection() {
+	protected PhysicalConnectionSource physicalConnectionSource() {
 		errorIfInvalid();
-		return logicalConnection;
+		return physicalConnectionSource;
 	}
 
 	/**
@@ -78,30 +79,27 @@ public class ConnectionProxyHandler
 	 *
 	 * @return The physical connection
 	 */
-	private Connection extractPhysicalConnection() {
-		return logicalConnection.getConnection();
+	private Connection obtainPhysicalConnection() {
+		return physicalConnectionSource.getPhysicalConnection();
 	}
 
 	/**
-	 * Provide access to JDBCServices.
-	 * <p/>
-	 * NOTE : package-protected
+	 * Provide access to JdbcServices.  Short-hand for calling {@link PhysicalConnectionSource#getJdbcServices()}
+	 * from {@link #physicalConnectionSource()}
 	 *
 	 * @return JDBCServices
 	 */
-	JdbcServices getJdbcServices() {
-		return logicalConnection.getJdbcServices();
+	protected JdbcServices jdbcServices() {
+		return physicalConnectionSource().getJdbcServices();
 	}
 
 	/**
-	 * Provide access to JDBCContainer.
-	 * <p/>
-	 * NOTE : package-protected
+	 * Provide access to JdbcResourceRegistry.
 	 *
 	 * @return JDBCContainer
 	 */
-	JdbcResourceRegistry getResourceRegistry() {
-		return logicalConnection.getResourceRegistry();
+	JdbcResourceRegistry jdbcResourceRegistry() {
+		return physicalConnectionSource().getJdbcResourceRegistry();
 	}
 
 	@Override
@@ -124,18 +122,18 @@ public class ConnectionProxyHandler
 		// handle the JDBC 4 Wrapper#isWrapperFor and Wrapper#unwrap calls
 		//		these cause problems to the whole proxy scheme though as we need to return the raw objects
 		if ( "isWrapperFor".equals( methodName ) && args.length == 1 ) {
-			return method.invoke( extractPhysicalConnection(), args );
+			return method.invoke( obtainPhysicalConnection(), args );
 		}
 		if ( "unwrap".equals( methodName ) && args.length == 1 ) {
-			return method.invoke( extractPhysicalConnection(), args );
+			return method.invoke( obtainPhysicalConnection(), args );
 		}
 
 		if ( "getWrappedObject".equals( methodName ) ) {
-			return extractPhysicalConnection();
+			return obtainPhysicalConnection();
 		}
 
 		try {
-			Object result = method.invoke( extractPhysicalConnection(), args );
+			Object result = method.invoke( obtainPhysicalConnection(), args );
 			result = postProcess( result, proxy, method, args );
 
 			return result;
@@ -143,7 +141,7 @@ public class ConnectionProxyHandler
 		catch( InvocationTargetException e ) {
 			Throwable realException = e.getTargetException();
 			if ( SQLException.class.isInstance( realException ) ) {
-				throw logicalConnection.getJdbcServices().getSqlExceptionHelper()
+				throw jdbcServices().getSqlExceptionHelper()
 						.convert( ( SQLException ) realException, realException.getMessage() );
 			}
 			else {
@@ -188,11 +186,11 @@ public class ConnectionProxyHandler
 	}
 
 	private void postProcessStatement(Statement statement) throws SQLException {
-		getResourceRegistry().register( statement );
+		jdbcResourceRegistry().register( statement );
 	}
 
 	private void postProcessPreparedStatement(Statement statement) throws SQLException  {
-		logicalConnection.notifyObserversStatementPrepared();
+		physicalConnectionSource().statementPrepared();
 		postProcessStatement( statement );
 	}
 
@@ -204,7 +202,7 @@ public class ConnectionProxyHandler
 
 	private void invalidateHandle() {
 		LOG.trace( "Invalidating connection handle" );
-		logicalConnection = null;
+		physicalConnectionSource = null;
 		invalidate();
 	}
 

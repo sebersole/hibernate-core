@@ -55,12 +55,12 @@ public class ImplicitResultSetProxyHandler extends AbstractResultSetProxyHandler
 
 	@Override
 	protected JdbcServices getJdbcServices() {
-		return connectionProxyHandler.getJdbcServices();
+		return connectionProxyHandler.jdbcServices();
 	}
 
 	@Override
 	protected JdbcResourceRegistry getResourceRegistry() {
-		return connectionProxyHandler.getResourceRegistry();
+		return connectionProxyHandler.jdbcResourceRegistry();
 	}
 
 	@Override

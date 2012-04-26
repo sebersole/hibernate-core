@@ -35,7 +35,6 @@ import java.sql.Statement;
 
 import org.hibernate.engine.jdbc.spi.InvalidatableWrapper;
 import org.hibernate.engine.jdbc.spi.JdbcWrapper;
-import org.hibernate.engine.jdbc.spi.LogicalConnectionImplementor;
 import org.hibernate.internal.util.Value;
 
 /**
@@ -74,8 +73,8 @@ public class ProxyBuilder {
 			}
 	);
 
-	public static Connection buildConnection(LogicalConnectionImplementor logicalConnection) {
-		final ConnectionProxyHandler proxyHandler = new ConnectionProxyHandler( logicalConnection );
+	public static Connection buildConnection(PhysicalConnectionSource physicalConnectionSource) {
+		final ConnectionProxyHandler proxyHandler = new ConnectionProxyHandler( physicalConnectionSource );
 		try {
 			return connectionProxyConstructorValue.getValue().newInstance( proxyHandler );
 		}

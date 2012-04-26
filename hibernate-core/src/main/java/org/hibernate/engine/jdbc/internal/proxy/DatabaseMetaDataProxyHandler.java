@@ -67,7 +67,7 @@ public class DatabaseMetaDataProxyHandler extends AbstractProxyHandler {
 
 			if ( exposingResultSet ) {
 				result = ProxyBuilder.buildImplicitResultSet( (ResultSet) result, connectionProxyHandler, connectionProxy );
-				connectionProxyHandler.getResourceRegistry().register( ( ResultSet ) result );
+				connectionProxyHandler.jdbcResourceRegistry().register( ( ResultSet ) result );
 			}
 
 			return result;
@@ -75,7 +75,7 @@ public class DatabaseMetaDataProxyHandler extends AbstractProxyHandler {
 		catch ( InvocationTargetException e ) {
 			Throwable realException = e.getTargetException();
 			if ( SQLException.class.isInstance( realException ) ) {
-				throw connectionProxyHandler.getJdbcServices().getSqlExceptionHelper()
+				throw connectionProxyHandler.jdbcServices().getSqlExceptionHelper()
 						.convert( ( SQLException ) realException, realException.getMessage() );
 			}
 			else {

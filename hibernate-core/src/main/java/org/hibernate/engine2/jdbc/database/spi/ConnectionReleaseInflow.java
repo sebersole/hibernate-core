@@ -21,7 +21,7 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.engine2;
+package org.hibernate.engine2.jdbc.database.spi;
 
 import org.hibernate.ConnectionReleaseMode;
 

@@ -48,7 +48,7 @@ public class PreparedStatementProxyHandler extends AbstractStatementProxyHandler
 			ConnectionProxyHandler connectionProxyHandler,
 			Connection connectionProxy) {
 		super( statement, connectionProxyHandler, connectionProxy );
-		connectionProxyHandler.getJdbcServices().getSqlStatementLogger().logStatement( sql );
+		connectionProxyHandler.jdbcServices().getSqlStatementLogger().logStatement( sql );
 		this.sql = sql;
 	}
 

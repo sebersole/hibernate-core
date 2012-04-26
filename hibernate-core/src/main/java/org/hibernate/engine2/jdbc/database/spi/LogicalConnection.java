@@ -21,9 +21,11 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.engine2;
+package org.hibernate.engine2.jdbc.database.spi;
 
 import java.sql.Connection;
+
+import org.hibernate.engine.jdbc.spi.ConnectionObserver;
 
 /**
  * Models the logical notion of a JDBC {@link java.sql.Connection}.  Basically responsible for managing the
@@ -52,6 +54,21 @@ public interface LogicalConnection extends ConnectionReleaseInflow {
 	public boolean isPhysicallyConnected();
 
 	/**
+	 * Retrieves the shareable connection proxy.
+	 *
+	 * @return The shareable connection proxy.
+	 */
+	public Connection getShareableConnectionProxy();
+
+	/**
+	 * Retrieves a distinct connection proxy.  It is distinct in that it is not shared with others unless the caller
+	 * explicitly shares it.
+	 *
+	 * @return The distinct connection proxy.
+	 */
+	public Connection getDistinctConnectionProxy();
+
+	/**
 	 * Release the underlying connection and clean up any other resources associated
 	 * with this logical connection.
 	 * <p/>
@@ -60,6 +77,17 @@ public interface LogicalConnection extends ConnectionReleaseInflow {
 	 * @return The application-supplied connection, or {@code null} if Hibernate was managing connection.
 	 */
 	public Connection close();
+
+	/**
+	 * Add an observer interested in notification of connection events.
+	 *
+	 * Observers are released when the LogicalConnection is {@link #close() closed}.  A specialization of the observer
+	 * contract, {@link org.hibernate.engine.jdbc.spi.NonDurableConnectionObserver}, indicates that the observer should
+	 * be released whenever the physical connection is released.
+	 *
+	 * @param observer The observer.
+	 */
+	public void addObserver(ConnectionObserver observer);
 
 
 	// LogicalConnectionImplementor~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -80,4 +108,8 @@ public interface LogicalConnection extends ConnectionReleaseInflow {
 	 * with which to reconnect.  It is an error to pass a connection in the other strategies.
 	 */
 	public void manualReconnect(Connection suppliedConnection);
+
+	public boolean isAutoCommit();
+
+	public boolean isReadyForSerialization();
 }
