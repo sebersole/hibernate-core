@@ -51,6 +51,8 @@ import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.CollectionHelper;
 
 /**
+ * Standard implementation of the {@link LogicalConnection} contract
+ *
  * @author Steve Ebersole
  */
 public class LogicalConnectionImpl implements LogicalConnection, PhysicalConnectionSource {

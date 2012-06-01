@@ -21,19 +21,18 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.engine2.jdbc.database.spi;
+package org.hibernate.engine2.jdbc.database.internal;
+
+import org.hibernate.engine2.jdbc.database.spi.JdbcSession;
+import org.hibernate.engine2.jdbc.database.spi.LogicalConnection;
 
 /**
- * Models what databases term a session: namely the resources represented by a JDBC {@code Connection} including
- * transaction context of that connection.
- *
  * @author Steve Ebersole
  */
-public interface JdbcSession {
-	/**
-	 * Provides access to the logical connection to the database.
-	 *
-	 * @return The logical database connection
-	 */
-	public LogicalConnection getLogicalConnection();
+public class JdbcSessionImpl implements JdbcSession {
+
+	@Override
+	public LogicalConnection getLogicalConnection() {
+		return null;  //To change body of implemented methods use File | Settings | File Templates.
+	}
 }
