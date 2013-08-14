@@ -2293,7 +2293,7 @@ public abstract class Loader {
 	        final Serializable[] ids,
 	        final Object[] parameterValues,
 	        final Type[] parameterTypes,
-	        final Map namedParameters,
+	        final Map<String, TypedValue> namedParameters,
 	        final Type type) throws HibernateException {
 
 		Type[] idTypes = new Type[ids.length];

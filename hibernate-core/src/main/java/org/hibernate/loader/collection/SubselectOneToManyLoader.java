@@ -35,6 +35,7 @@ import org.hibernate.engine.spi.LoadQueryInfluencers;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.type.Type;
 
@@ -47,7 +48,7 @@ public class SubselectOneToManyLoader extends OneToManyLoader {
 	private final Serializable[] keys;
 	private final Type[] types;
 	private final Object[] values;
-	private final Map namedParameters;
+	private final Map<String, TypedValue> namedParameters;
 	private final Map namedParameterLocMap;
 
 	public SubselectOneToManyLoader(
