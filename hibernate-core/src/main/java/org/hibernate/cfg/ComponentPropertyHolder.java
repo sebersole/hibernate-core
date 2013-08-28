@@ -31,6 +31,7 @@ import javax.persistence.JoinTable;
 import org.hibernate.AnnotationException;
 import org.hibernate.annotations.common.reflection.XClass;
 import org.hibernate.annotations.common.reflection.XProperty;
+import org.hibernate.loader.PropertyPath;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.Join;
 import org.hibernate.mapping.KeyValue;
@@ -148,7 +149,7 @@ public class ComponentPropertyHolder extends AbstractPropertyHolder {
 			if ( userPropertyName != null ) result = super.getOverriddenColumn( userPropertyName );
 		}
 		if ( result == null ) {
-			String userPropertyName = extractUserPropertyName( "_identifierMapper", propertyName );
+			String userPropertyName = extractUserPropertyName( PropertyPath.IDENTIFIER_MAPPER_PROPERTY, propertyName );
 			if ( userPropertyName != null ) result = super.getOverriddenColumn( userPropertyName );
 		}
 		return result;
