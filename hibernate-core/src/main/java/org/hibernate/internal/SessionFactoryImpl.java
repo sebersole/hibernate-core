@@ -469,6 +469,10 @@ public final class SessionFactoryImpl
 
 		// after *all* persisters and named queries are registered
 		for ( EntityPersister persister : entityPersisters.values() ) {
+			persister.generateEntityDefinition();
+		}
+
+		for ( EntityPersister persister : entityPersisters.values() ) {
 			persister.postInstantiate();
 			registerEntityNameResolvers( persister );
 		}
