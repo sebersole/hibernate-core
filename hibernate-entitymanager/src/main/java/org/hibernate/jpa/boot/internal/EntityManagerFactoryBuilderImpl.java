@@ -1013,7 +1013,8 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 	public Configuration buildHibernateConfiguration(ServiceRegistry serviceRegistry) {
 		Properties props = new Properties();
 		props.putAll( configurationValues );
-		Configuration cfg = new Configuration().setProperties( props );
+		Configuration cfg = new Configuration();
+		cfg.getProperties().putAll( props );
 
 		cfg.setEntityNotFoundDelegate( jpaEntityNotFoundDelegate );
 
