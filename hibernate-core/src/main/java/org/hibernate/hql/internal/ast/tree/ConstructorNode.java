@@ -39,6 +39,7 @@ import org.hibernate.internal.util.StringHelper;
 import org.hibernate.transform.AliasToBeanConstructorResultTransformer;
 import org.hibernate.transform.ResultTransformer;
 import org.hibernate.transform.Transformers;
+import org.hibernate.type.PrimitiveType;
 import org.hibernate.type.Type;
 
 /**
@@ -184,8 +185,21 @@ public class ConstructorNode extends SelectExpressionList implements AggregatedS
 		catch ( PropertyNotFoundException e ) {
 			// this is the exception returned by ReflectHelper.getConstructor() if it cannot
 			// locate an appropriate constructor
-			throw new DetailedSemanticException( "Unable to locate appropriate constructor on class [" + className + "]", e );
+			throw new DetailedSemanticException( formatMissingContructorExceptionMessage( className ), e );
 		}
+	}
+
+	// HHH-8068 -- provide a more helpful message
+	private String formatMissingContructorExceptionMessage(String className) {
+		String[] params = new String[constructorArgumentTypes.length];
+		for ( int j = 0; j < constructorArgumentTypes.length; j++ ) {
+			params[j] = constructorArgumentTypes[j] instanceof PrimitiveType
+					? ( (PrimitiveType) constructorArgumentTypes[j] ).getPrimitiveClass().getName()
+							: constructorArgumentTypes[j].getReturnedClass().getName();
+		}
+		String formattedList = params.length == 0 ? "no arguments constructor" : StringHelper.join( ", ", params );
+		return String.format( "Unable to locate appropriate constructor on class [%s]. Expected arguments are: %s",
+				className, formattedList );
 	}
 
 	public Constructor getConstructor() {

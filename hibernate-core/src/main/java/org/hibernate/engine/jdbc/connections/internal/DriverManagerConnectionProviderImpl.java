@@ -57,7 +57,6 @@ import org.jboss.logging.Logger;
  * @author Gavin King
  * @author Steve Ebersole
  */
-@SuppressWarnings( {"UnnecessaryUnboxing"})
 public class DriverManagerConnectionProviderImpl
 		implements ConnectionProvider, Configurable, Stoppable, ServiceRegistryAwareService {
 	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, DriverManagerConnectionProviderImpl.class.getName() );
@@ -68,6 +67,7 @@ public class DriverManagerConnectionProviderImpl
 	private int poolSize;
 	private boolean autocommit;
 
+	//Access guarded by synchronization on the pool instance
 	private final ArrayList<Connection> pool = new ArrayList<Connection>();
 	private final AtomicInteger checkedOut = new AtomicInteger();
 
@@ -141,7 +141,7 @@ public class DriverManagerConnectionProviderImpl
 
 		isolation = ConfigurationHelper.getInteger( AvailableSettings.ISOLATION, configurationValues );
 		if ( isolation != null ) {
-			LOG.jdbcIsolationLevel( Environment.isolationLevelToString( isolation.intValue() ) );
+			LOG.jdbcIsolationLevel( Environment.isolationLevelToString( isolation ) );
 		}
 
 		url = (String) configurationValues.get( AvailableSettings.URL );
@@ -167,15 +167,17 @@ public class DriverManagerConnectionProviderImpl
 	public void stop() {
 		LOG.cleaningUpConnectionPool( url );
 
-		for ( Connection connection : pool ) {
-			try {
-				connection.close();
+		synchronized ( pool ) {
+			for ( Connection connection : pool ) {
+				try {
+					connection.close();
+				}
+				catch (SQLException sqle) {
+					LOG.unableToClosePooledConnection( sqle );
+				}
 			}
-			catch (SQLException sqle) {
-				LOG.unableToClosePooledConnection( sqle );
-			}
+			pool.clear();
 		}
-		pool.clear();
 		stopped = true;
 	}
 
@@ -195,7 +197,7 @@ public class DriverManagerConnectionProviderImpl
 				}
 				final Connection pooled = pool.remove( last );
 				if ( isolation != null ) {
-					pooled.setTransactionIsolation( isolation.intValue() );
+					pooled.setTransactionIsolation( isolation );
 				}
 				if ( pooled.getAutoCommit() != autocommit ) {
 					pooled.setAutoCommit( autocommit );
@@ -225,7 +227,7 @@ public class DriverManagerConnectionProviderImpl
 		}
 		
 		if ( isolation != null ) {
-			conn.setTransactionIsolation( isolation.intValue() );
+			conn.setTransactionIsolation( isolation );
 		}
 		if ( conn.getAutoCommit() != autocommit ) {
 			conn.setAutoCommit( autocommit );

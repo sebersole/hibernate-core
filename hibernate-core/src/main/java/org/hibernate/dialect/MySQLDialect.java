@@ -61,6 +61,7 @@ public class MySQLDialect extends Dialect {
 		registerColumnType( Types.CHAR, "char(1)" );
 		registerColumnType( Types.FLOAT, "float" );
 		registerColumnType( Types.DOUBLE, "double precision" );
+		registerColumnType( Types.BOOLEAN, "bit" ); // HHH-6935
 		registerColumnType( Types.DATE, "date" );
 		registerColumnType( Types.TIME, "time" );
 		registerColumnType( Types.TIMESTAMP, "datetime" );
@@ -115,6 +116,7 @@ public class MySQLDialect extends Dialect {
 		registerFunction( "rand", new NoArgSQLFunction( "rand", StandardBasicTypes.DOUBLE ) );
 		registerFunction( "sin", new StandardSQLFunction( "sin", StandardBasicTypes.DOUBLE ) );
 		registerFunction( "sqrt", new StandardSQLFunction( "sqrt", StandardBasicTypes.DOUBLE ) );
+		registerFunction( "stddev", new StandardSQLFunction("std", StandardBasicTypes.DOUBLE) );
 		registerFunction( "tan", new StandardSQLFunction( "tan", StandardBasicTypes.DOUBLE ) );
 
 		registerFunction( "radians", new StandardSQLFunction( "radians", StandardBasicTypes.DOUBLE ) );
@@ -317,7 +319,13 @@ public class MySQLDialect extends Dialect {
 	public String getCastTypeName(int code) {
 		switch ( code ) {
 			case Types.INTEGER:
+			case Types.BIGINT:
+			case Types.SMALLINT:
 				return "signed";
+			case Types.FLOAT:
+			case Types.NUMERIC:
+			case Types.REAL:
+				return "decimal";
 			case Types.VARCHAR:
 				return "char";
 			case Types.VARBINARY:

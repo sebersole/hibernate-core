@@ -22,6 +22,9 @@ dependencies {
     testRuntime( libraries.validator )
     testRuntime( "org.jboss.spec.javax.ejb:jboss-ejb-api_3.2_spec:1.0.0.Alpha2" )
 //    testRuntime( "org.glassfish.web:el-impl:2.1.2-b04" )
+
+    // for testing stored procedure support
+    testCompile( libraries.derby )
 }
 
 def pomName() {
@@ -44,7 +47,7 @@ jar {
         // <Import-Package>*</ImportPackage> will occur.  This is simply a
         // BND instruction -- the auto-discovery of imported packages still
         // occurs.
-        instruction 'Import-Package',
+        instructionFirst 'Import-Package',
             '!javax.enterprise*',
             'javax.enterprise.context.spi;resolution:=optional',
             'javax.enterprise.inject.spi;resolution:=optional',

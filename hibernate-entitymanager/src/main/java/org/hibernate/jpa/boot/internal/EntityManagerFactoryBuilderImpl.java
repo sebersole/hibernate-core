@@ -391,7 +391,8 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 				metadataSources.converterDescriptors.add(
 						new MetadataSources.ConverterDescriptor(
 								className,
-								JandexHelper.getValue( converterAnnotation, "autoApply", boolean.class )
+								JandexHelper.getValue( converterAnnotation, "autoApply", boolean.class,
+										bootstrapServiceRegistry.getService( ClassLoaderService.class ) )
 						)
 				);
 			}
@@ -508,7 +509,6 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 		}
 		else if ( appClassLoader != null ) {
 			classLoader = appClassLoader;
-			integrationSettings.remove( org.hibernate.cfg.AvailableSettings.APP_CLASSLOADER );
 		}
 		else {
 			classLoader = persistenceUnit.getClassLoader();
@@ -811,7 +811,18 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 					@Override
 					public Object perform() {
 						final Configuration hibernateConfiguration = buildHibernateConfiguration( serviceRegistry );
+						
+						// This seems overkill, but building the SF is necessary to get the Integrators to kick in.
+						// Metamodel will clean this up...
+						try {
+							hibernateConfiguration.buildSessionFactory( serviceRegistry );
+						}
+						catch (MappingException e) {
+							throw persistenceException( "Unable to build Hibernate SessionFactory", e );
+						}
+						
 						JpaSchemaGenerator.performGeneration( hibernateConfiguration, serviceRegistry );
+						
 						return null;
 					}
 				}
@@ -837,7 +848,6 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 					@Override
 					public EntityManagerFactoryImpl perform() {
 						hibernateConfiguration = buildHibernateConfiguration( serviceRegistry );
-						JpaSchemaGenerator.performGeneration( hibernateConfiguration, serviceRegistry );
 
 						SessionFactoryImplementor sessionFactory;
 						try {
@@ -846,6 +856,9 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 						catch (MappingException e) {
 							throw persistenceException( "Unable to build Hibernate SessionFactory", e );
 						}
+						
+						// must do after buildSessionFactory to let the Integrators kick in
+						JpaSchemaGenerator.performGeneration( hibernateConfiguration, serviceRegistry );
 
 						if ( suppliedSessionFactoryObserver != null ) {
 							sessionFactory.addObserver( suppliedSessionFactoryObserver );
@@ -876,6 +889,7 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 		if ( validationFactory != null ) {
 			BeanValidationIntegrator.validateFactory( validationFactory );
 			serviceRegistryBuilder.applySetting( AvailableSettings.VALIDATION_FACTORY, validationFactory );
+			configurationValues.put( AvailableSettings.VALIDATION_FACTORY, this.validatorFactory );
 		}
 
 		// flush before completion validation
@@ -1089,7 +1103,12 @@ public class EntityManagerFactoryBuilderImpl implements EntityManagerFactoryBuil
 		List<Class> loadedAnnotatedClasses = (List<Class>) configurationValues.remove( AvailableSettings.LOADED_CLASSES );
 		if ( loadedAnnotatedClasses != null ) {
 			for ( Class cls : loadedAnnotatedClasses ) {
-				cfg.addAnnotatedClass( cls );
+				if ( AttributeConverter.class.isAssignableFrom( cls ) ) {
+					cfg.addAttributeConverter( (Class<? extends AttributeConverter>) cls );
+				}
+				else {
+					cfg.addAnnotatedClass( cls );
+				}
 			}
 		}
 

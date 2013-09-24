@@ -49,7 +49,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -82,7 +81,6 @@ import org.hibernate.jpa.graph.internal.SubgraphImpl;
 import org.hibernate.jpa.internal.metamodel.EntityTypeImpl;
 import org.hibernate.jpa.internal.metamodel.MetamodelImpl;
 import org.hibernate.jpa.internal.util.PersistenceUtilHelper;
-import org.hibernate.mapping.PersistentClass;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.procedure.ProcedureCall;
 import org.hibernate.service.ServiceRegistry;
@@ -141,14 +139,14 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 		this.discardOnClose = settings.isReleaseResourcesOnCloseEnabled();
 		this.sessionInterceptorClass = settings.getSessionInterceptorClass();
 
-		final Iterator<PersistentClass> classes = cfg.getClassMappings();
 		final JpaMetaModelPopulationSetting jpaMetaModelPopulationSetting = determineJpaMetaModelPopulationSetting( cfg );
 		if ( JpaMetaModelPopulationSetting.DISABLED == jpaMetaModelPopulationSetting ) {
 			this.metamodel = null;
 		}
 		else {
 			this.metamodel = MetamodelImpl.buildMetamodel(
-					classes,
+					cfg.getClassMappings(),
+					cfg.getMappedSuperclassMappingsCopy(),
 					sessionFactory,
 					JpaMetaModelPopulationSetting.IGNORE_UNSUPPORTED == jpaMetaModelPopulationSetting
 			);
@@ -295,20 +293,37 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 	}
 
 	public EntityManager createEntityManager() {
-		return createEntityManager( Collections.EMPTY_MAP );
+		return internalCreateEntityManager( SynchronizationType.SYNCHRONIZED, Collections.EMPTY_MAP );
 	}
 
 	@Override
 	public EntityManager createEntityManager(SynchronizationType synchronizationType) {
-		return createEntityManager( synchronizationType, Collections.EMPTY_MAP );
+		errorIfResourceLocalDueToExplicitSynchronizationType();
+		return internalCreateEntityManager( synchronizationType, Collections.EMPTY_MAP );
+	}
+
+	private void errorIfResourceLocalDueToExplicitSynchronizationType() {
+		if ( transactionType == PersistenceUnitTransactionType.RESOURCE_LOCAL ) {
+			throw new IllegalStateException(
+					"Illegal attempt to specify a SynchronizationType when building an EntityManager from a " +
+							"EntityManagerFactory defined as RESOURCE_LOCAL "
+			);
+		}
 	}
 
 	public EntityManager createEntityManager(Map map) {
-		return createEntityManager( SynchronizationType.SYNCHRONIZED, map );
+		return internalCreateEntityManager( SynchronizationType.SYNCHRONIZED, map );
 	}
 
 	@Override
 	public EntityManager createEntityManager(SynchronizationType synchronizationType, Map map) {
+		errorIfResourceLocalDueToExplicitSynchronizationType();
+		return internalCreateEntityManager( synchronizationType, map );
+	}
+
+	private EntityManager internalCreateEntityManager(SynchronizationType synchronizationType, Map map) {
+		validateNotClosed();
+
 		//TODO support discardOnClose, persistencecontexttype?, interceptor,
 		return new EntityManagerImpl(
 				this,
@@ -322,63 +337,103 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 	}
 
 	public CriteriaBuilder getCriteriaBuilder() {
+		validateNotClosed();
 		return criteriaBuilder;
 	}
 
 	public Metamodel getMetamodel() {
+		validateNotClosed();
 		return metamodel;
 	}
 
 	public void close() {
+		// The spec says so, that's why :(
+		validateNotClosed();
+
 		sessionFactory.close();
 		EntityManagerFactoryRegistry.INSTANCE.removeEntityManagerFactory(entityManagerFactoryName, this);
 	}
 
 	public Map<String, Object> getProperties() {
+		validateNotClosed();
 		return properties;
 	}
 
 	public Cache getCache() {
+		validateNotClosed();
+
 		// TODO : cache the cache reference?
-		if ( ! isOpen() ) {
-			throw new IllegalStateException("EntityManagerFactory is closed");
-		}
 		return new JPACache( sessionFactory );
 	}
 
-	public PersistenceUnitUtil getPersistenceUnitUtil() {
+	protected void validateNotClosed() {
 		if ( ! isOpen() ) {
-			throw new IllegalStateException("EntityManagerFactory is closed");
+			throw new IllegalStateException( "EntityManagerFactory is closed" );
 		}
+	}
+
+	public PersistenceUnitUtil getPersistenceUnitUtil() {
+		validateNotClosed();
 		return util;
 	}
 
 	@Override
 	public void addNamedQuery(String name, Query query) {
-		if ( ! isOpen() ) {
-			throw new IllegalStateException( "EntityManagerFactory is closed" );
+		validateNotClosed();
+
+		// NOTE : we use Query#unwrap here (rather than direct type checking) to account for possibly wrapped
+		// query implementations
+
+		// first, handle StoredProcedureQuery
+		try {
+			final StoredProcedureQueryImpl unwrapped = query.unwrap( StoredProcedureQueryImpl.class );
+			if ( unwrapped != null ) {
+				addNamedStoredProcedureQuery( name, unwrapped );
+				return;
+			}
+		}
+		catch ( PersistenceException ignore ) {
+			// this means 'query' is not a StoredProcedureQueryImpl
 		}
 
-		if ( StoredProcedureQueryImpl.class.isInstance( query ) ) {
-			final ProcedureCall procedureCall = ( (StoredProcedureQueryImpl) query ).getHibernateProcedureCall();
-			sessionFactory.getNamedQueryRepository().registerNamedProcedureCallMemento( name, procedureCall.extractMemento( query.getHints() ) );
-		}
-		else if ( ! HibernateQuery.class.isInstance( query ) ) {
-			throw new PersistenceException( "Cannot use query non-Hibernate EntityManager query as basis for named query" );
-		}
-		else {
-			// create and register the proper NamedQueryDefinition...
-			final org.hibernate.Query hibernateQuery = ( (HibernateQuery) query ).getHibernateQuery();
-			if ( org.hibernate.SQLQuery.class.isInstance( hibernateQuery ) ) {
-				sessionFactory.registerNamedSQLQueryDefinition(
-						name,
-						extractSqlQueryDefinition( (org.hibernate.SQLQuery) hibernateQuery, name )
-				);
-			}
-			else {
-				sessionFactory.registerNamedQueryDefinition( name, extractHqlQueryDefinition( hibernateQuery, name ) );
+		// then try as a native-SQL or JPQL query
+		try {
+			final HibernateQuery unwrapped = query.unwrap( HibernateQuery.class );
+			if ( unwrapped != null ) {
+				// create and register the proper NamedQueryDefinition...
+				final org.hibernate.Query hibernateQuery = ( (HibernateQuery) query ).getHibernateQuery();
+				if ( org.hibernate.SQLQuery.class.isInstance( hibernateQuery ) ) {
+					sessionFactory.registerNamedSQLQueryDefinition(
+							name,
+							extractSqlQueryDefinition( (org.hibernate.SQLQuery) hibernateQuery, name )
+					);
+				}
+				else {
+					sessionFactory.registerNamedQueryDefinition( name, extractHqlQueryDefinition( hibernateQuery, name ) );
+				}
+				return;
 			}
 		}
+		catch ( PersistenceException ignore ) {
+			// this means 'query' is not a native-SQL or JPQL query
+		}
+
+
+		// if we get here, we are unsure how to properly unwrap the incoming query to extract the needed information
+		throw new PersistenceException(
+				String.format(
+						"Unsure how to how to properly unwrap given Query [%s] as basis for named query",
+						query
+				)
+		);
+	}
+
+	private void addNamedStoredProcedureQuery(String name, StoredProcedureQueryImpl query) {
+		final ProcedureCall procedureCall = query.getHibernateProcedureCall();
+		sessionFactory.getNamedQueryRepository().registerNamedProcedureCallMemento(
+				name,
+				procedureCall.extractMemento( query.getHints() )
+		);
 	}
 
 	private NamedSQLQueryDefinition extractSqlQueryDefinition(org.hibernate.SQLQuery nativeSqlQuery, String name) {

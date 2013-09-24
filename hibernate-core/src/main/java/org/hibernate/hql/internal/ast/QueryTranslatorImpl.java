@@ -23,6 +23,7 @@
  */
 package org.hibernate.hql.internal.ast;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,6 +70,7 @@ import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.IdentitySet;
 import org.hibernate.loader.hql.QueryLoader;
+import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.type.Type;
 
@@ -101,7 +103,7 @@ public class QueryTranslatorImpl implements FilterTranslator {
 	private String sql;
 
 	private ParameterTranslations paramTranslations;
-	private List collectedParameterSpecifications;
+	private List<ParameterSpecification> collectedParameterSpecifications;
 
 
 	/**
@@ -341,7 +343,7 @@ public class QueryTranslatorImpl implements FilterTranslator {
 		return getWalker().getSelectClause().getColumnNames();
 	}
 	@Override
-	public Set getQuerySpaces() {
+	public Set<Serializable> getQuerySpaces() {
 		return getWalker().getQuerySpaces();
 	}
 
@@ -569,12 +571,11 @@ public class QueryTranslatorImpl implements FilterTranslator {
 	public ParameterTranslations getParameterTranslations() {
 		if ( paramTranslations == null ) {
 			paramTranslations = new ParameterTranslationsImpl( getWalker().getParameters() );
-//			paramTranslations = new ParameterTranslationsImpl( collectedParameterSpecifications );
 		}
 		return paramTranslations;
 	}
 
-	public List getCollectedParameterSpecifications() {
+	public List<ParameterSpecification> getCollectedParameterSpecifications() {
 		return collectedParameterSpecifications;
 	}
 

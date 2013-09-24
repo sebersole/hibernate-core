@@ -26,10 +26,10 @@ package org.hibernate.jpa.internal;
 import java.net.URISyntaxException;
 import java.net.URL;
 
-import org.jboss.logging.Cause;
-import org.jboss.logging.LogMessage;
-import org.jboss.logging.Message;
-import org.jboss.logging.MessageLogger;
+import org.jboss.logging.annotations.Cause;
+import org.jboss.logging.annotations.LogMessage;
+import org.jboss.logging.annotations.Message;
+import org.jboss.logging.annotations.MessageLogger;
 
 import org.hibernate.internal.CoreMessageLogger;
 
@@ -108,4 +108,27 @@ public interface EntityManagerMessageLogger extends CoreMessageLogger {
             "as the entity (type=%s, id=%s) does not exist", id = 15013 )
     void ignoringEntityNotFound( String entityName, String identifier);
 
+	@LogMessage( level = WARN )
+	@Message(
+			value = "DEPRECATION - attempt to refer to JPA positional parameter [?%1$s] using String name [\"%1$s\"] " +
+					"rather than int position [%1$s] (generally in Query#setParameter, Query#getParameter or " +
+					"Query#getParameterValue calls).  Hibernate previously allowed such usage, but it is considered " +
+					"deprecated.",
+			id = 15014
+	)
+	void deprecatedJpaPositionalParameterAccess(Integer jpaPositionalParameter);
+
+	@LogMessage( level = INFO )
+	@Message(
+			id = 15015,
+			value = "Encountered a MappedSuperclass [%s] not used in any entity hierarchy"
+	)
+	void unusedMappedSuperclass(String name);
+
+	@LogMessage( level = WARN )
+	@Message(
+			id = 15016,
+			value = "Encountered a deprecated javax.persistence.spi.PersistenceProvider [%s]; use [%s] instead."
+	)
+	void deprecatedPersistenceProvider(String deprecated, String replacement);
 }

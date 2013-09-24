@@ -326,6 +326,31 @@
                             Name of column used for storing ordinal of the change in sets of embeddable elements.
                         </entry>
                     </row>
+                    <row>
+                        <entry>
+                            <property>org.hibernate.envers.cascade_delete_revision</property>
+                        </entry>
+                        <entry>
+                            false
+                        </entry>
+                        <entry>
+                            While deleting revision entry, remove data of associated audited entities.
+                            Requires database support for cascade row removal. 
+                        </entry>
+                    </row>
+                    <row>
+                        <entry>
+                            <property>org.hibernate.envers.allow_identifier_reuse</property>
+                        </entry>
+                        <entry>
+                            false
+                        </entry>
+                        <entry>
+                            Guarantees proper validity audit strategy behavior when application reuses identifiers
+                            of deleted entities. Exactly one row with <literal>null</literal> end date exists
+                            for each identifier.
+                        </entry>
+                    </row>
                 </tbody>
             </tgroup>
         </table>
@@ -380,8 +405,12 @@
         <para>
             If you want to audit a relation, where the target entity is not audited (that is the case for example with
             dictionary-like entities, which don't change and don't have to be audited), just annotate it with
-            <literal>@Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)</literal>. Then, when reading historic
-            versions of your entity, the relation will always point to the "current" related entity.
+            <literal>@Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)</literal>. Then, while reading historic
+            versions of your entity, the relation will always point to the "current" related entity. By default Envers
+            throws <classname>javax.persistence.EntityNotFoundException</classname> when "current" entity does not
+            exist in the database. Apply <literal>@NotFound(action = NotFoundAction.IGNORE)</literal> annotation
+            to silence the exception and assign null value instead. Hereby solution causes implicit eager loading
+            of to-one relations.
         </para>
 
         <para>

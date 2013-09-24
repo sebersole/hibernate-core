@@ -23,33 +23,41 @@
  */
 package org.hibernate.test.type;
 
+import static org.hibernate.testing.junit4.ExtraAssertions.assertTyping;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
+
+import java.io.Serializable;
+import java.sql.Timestamp;
+import java.sql.Types;
+
 import javax.persistence.AttributeConverter;
 import javax.persistence.Convert;
 import javax.persistence.Converter;
 import javax.persistence.Entity;
 import javax.persistence.Id;
-import java.sql.Clob;
-import java.sql.Types;
 
 import org.hibernate.IrrelevantEntity;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.hibernate.cfg.AttributeConverterDefinition;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.Configuration;
+import org.hibernate.internal.util.ConfigHelper;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
 import org.hibernate.mapping.SimpleValue;
+import org.hibernate.testing.FailureExpected;
+import org.hibernate.testing.TestForIssue;
+import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.hibernate.type.AbstractStandardBasicType;
 import org.hibernate.type.BasicType;
 import org.hibernate.type.Type;
+import org.hibernate.type.descriptor.converter.AttributeConverterTypeAdapter;
 import org.hibernate.type.descriptor.java.StringTypeDescriptor;
-
 import org.junit.Test;
-
-import org.hibernate.testing.junit4.BaseUnitTestCase;
-
-import static org.hibernate.testing.junit4.ExtraAssertions.assertTyping;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 
 /**
  * Tests the principle of adding "AttributeConverter" to the mix of {@link org.hibernate.type.Type} resolution
@@ -68,18 +76,36 @@ public class AttributeConverterTest extends BaseUnitTestCase {
 
 		Type type = simpleValue.getType();
 		assertNotNull( type );
-		assertTyping( BasicType.class, type );
+		if ( ! AttributeConverterTypeAdapter.class.isInstance( type ) ) {
+			fail( "AttributeConverter not applied" );
+		}
 		AbstractStandardBasicType basicType = assertTyping( AbstractStandardBasicType.class, type );
 		assertSame( StringTypeDescriptor.INSTANCE, basicType.getJavaTypeDescriptor() );
 		assertEquals( Types.CLOB, basicType.getSqlTypeDescriptor().getSqlType() );
 	}
 
 	@Test
-	public void testNormalOperation() {
+	public void testNonAutoApplyHandling() {
+		Configuration cfg = new Configuration();
+		cfg.addAttributeConverter( NotAutoAppliedConverter.class, false );
+		cfg.addAnnotatedClass( Tester.class );
+		cfg.buildMappings();
+
+		PersistentClass tester = cfg.getClassMapping( Tester.class.getName() );
+		Property nameProp = tester.getProperty( "name" );
+		SimpleValue nameValue = (SimpleValue) nameProp.getValue();
+		Type type = nameValue.getType();
+		assertNotNull( type );
+		if ( AttributeConverterTypeAdapter.class.isInstance( type ) ) {
+			fail( "AttributeConverter with autoApply=false was auto applied" );
+		}
+	}
+
+	@Test
+	public void testBasicConverterApplication() {
 		Configuration cfg = new Configuration();
 		cfg.addAttributeConverter( StringClobConverter.class, true );
 		cfg.addAnnotatedClass( Tester.class );
-		cfg.addAnnotatedClass( Tester2.class );
 		cfg.buildMappings();
 
 		{
@@ -89,10 +115,44 @@ public class AttributeConverterTest extends BaseUnitTestCase {
 			Type type = nameValue.getType();
 			assertNotNull( type );
 			assertTyping( BasicType.class, type );
+			if ( ! AttributeConverterTypeAdapter.class.isInstance( type ) ) {
+				fail( "AttributeConverter not applied" );
+			}
 			AbstractStandardBasicType basicType = assertTyping( AbstractStandardBasicType.class, type );
 			assertSame( StringTypeDescriptor.INSTANCE, basicType.getJavaTypeDescriptor() );
 			assertEquals( Types.CLOB, basicType.getSqlTypeDescriptor().getSqlType() );
 		}
+	}
+
+	@Test
+	@TestForIssue(jiraKey = "HHH-8462")
+	public void testBasicOrmXmlConverterApplication() {
+		Configuration cfg = new Configuration();
+		cfg.addAnnotatedClass( Tester.class );
+		cfg.addURL( ConfigHelper.findAsResource( "org/hibernate/test/type/orm.xml") );
+		cfg.buildMappings();
+
+		{
+			PersistentClass tester = cfg.getClassMapping( Tester.class.getName() );
+			Property nameProp = tester.getProperty( "name" );
+			SimpleValue nameValue = (SimpleValue) nameProp.getValue();
+			Type type = nameValue.getType();
+			assertNotNull( type );
+			if ( ! AttributeConverterTypeAdapter.class.isInstance( type ) ) {
+				fail( "AttributeConverter not applied" );
+			}
+			AttributeConverterTypeAdapter basicType = assertTyping( AttributeConverterTypeAdapter.class, type );
+			assertSame( StringTypeDescriptor.INSTANCE, basicType.getJavaTypeDescriptor() );
+			assertEquals( Types.CLOB, basicType.getSqlTypeDescriptor().getSqlType() );
+		}
+	}
+
+	@Test
+	public void testBasicConverterDisableApplication() {
+		Configuration cfg = new Configuration();
+		cfg.addAttributeConverter( StringClobConverter.class, true );
+		cfg.addAnnotatedClass( Tester2.class );
+		cfg.buildMappings();
 
 		{
 			PersistentClass tester = cfg.getClassMapping( Tester2.class.getName() );
@@ -100,22 +160,116 @@ public class AttributeConverterTest extends BaseUnitTestCase {
 			SimpleValue nameValue = (SimpleValue) nameProp.getValue();
 			Type type = nameValue.getType();
 			assertNotNull( type );
-			assertTyping( BasicType.class, type );
+			if ( AttributeConverterTypeAdapter.class.isInstance( type ) ) {
+				fail( "AttributeConverter applied (should not have been)" );
+			}
 			AbstractStandardBasicType basicType = assertTyping( AbstractStandardBasicType.class, type );
 			assertSame( StringTypeDescriptor.INSTANCE, basicType.getJavaTypeDescriptor() );
 			assertEquals( Types.VARCHAR, basicType.getSqlTypeDescriptor().getSqlType() );
 		}
 	}
 
+	@Test
+	public void testBasicUsage() {
+		Configuration cfg = new Configuration();
+		cfg.addAttributeConverter( IntegerToVarcharConverter.class, false );
+		cfg.addAnnotatedClass( Tester4.class );
+		cfg.setProperty( AvailableSettings.HBM2DDL_AUTO, "create-drop" );
+		cfg.setProperty( AvailableSettings.GENERATE_STATISTICS, "true" );
 
-	@Entity
+		SessionFactory sf = cfg.buildSessionFactory();
+
+		try {
+			Session session = sf.openSession();
+			session.beginTransaction();
+			session.save( new Tester4( 1L, "steve", 200 ) );
+			session.getTransaction().commit();
+			session.close();
+
+			sf.getStatistics().clear();
+			session = sf.openSession();
+			session.beginTransaction();
+			session.get( Tester4.class, 1L );
+			session.getTransaction().commit();
+			session.close();
+			assertEquals( 0, sf.getStatistics().getEntityUpdateCount() );
+
+			session = sf.openSession();
+			session.beginTransaction();
+			Tester4 t4 = (Tester4) session.get( Tester4.class, 1L );
+			t4.code = 300;
+			session.getTransaction().commit();
+			session.close();
+
+			session = sf.openSession();
+			session.beginTransaction();
+			t4 = (Tester4) session.get( Tester4.class, 1L );
+			assertEquals( 300, t4.code.longValue() );
+			session.delete( t4 );
+			session.getTransaction().commit();
+			session.close();
+		}
+		finally {
+			sf.close();
+		}
+	}
+
+	@Test
+	public void testBasicTimestampUsage() {
+		Configuration cfg = new Configuration();
+		cfg.addAttributeConverter( InstantConverter.class, false );
+		cfg.addAnnotatedClass( IrrelevantInstantEntity.class );
+		cfg.setProperty( AvailableSettings.HBM2DDL_AUTO, "create-drop" );
+		cfg.setProperty( AvailableSettings.GENERATE_STATISTICS, "true" );
+
+		SessionFactory sf = cfg.buildSessionFactory();
+
+		try {
+			Session session = sf.openSession();
+			session.beginTransaction();
+			session.save( new IrrelevantInstantEntity( 1L ) );
+			session.getTransaction().commit();
+			session.close();
+
+			sf.getStatistics().clear();
+			session = sf.openSession();
+			session.beginTransaction();
+			IrrelevantInstantEntity e = (IrrelevantInstantEntity) session.get( IrrelevantInstantEntity.class, 1L );
+			session.getTransaction().commit();
+			session.close();
+			assertEquals( 0, sf.getStatistics().getEntityUpdateCount() );
+
+			session = sf.openSession();
+			session.beginTransaction();
+			session.delete( e );
+			session.getTransaction().commit();
+			session.close();
+		}
+		finally {
+			sf.close();
+		}
+	}
+	
+	
+
+	// Entity declarations used in the test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	@Entity(name = "T1")
 	public static class Tester {
 		@Id
 		private Long id;
 		private String name;
+
+		public Tester() {
+		}
+
+		public Tester(Long id, String name) {
+			this.id = id;
+			this.name = name;
+		}
 	}
 
-	@Entity
+	@Entity(name = "T2")
 	public static class Tester2 {
 		@Id
 		private Long id;
@@ -123,24 +277,131 @@ public class AttributeConverterTest extends BaseUnitTestCase {
 		private String name;
 	}
 
-	@Entity
+	@Entity(name = "T3")
 	public static class Tester3 {
 		@Id
 		private Long id;
 		@org.hibernate.annotations.Type( type = "string" )
+		@Convert(disableConversion = true)
 		private String name;
 	}
 
-	@Converter( autoApply = true )
-	public static class StringClobConverter implements AttributeConverter<String,Clob> {
+	@Entity(name = "T4")
+	public static class Tester4 {
+		@Id
+		private Long id;
+		private String name;
+		@Convert( converter = IntegerToVarcharConverter.class )
+		private Integer code;
+
+		public Tester4() {
+		}
+
+		public Tester4(Long id, String name, Integer code) {
+			this.id = id;
+			this.name = name;
+			this.code = code;
+		}
+	}
+
+	// This class is for mimicking an Instant from Java 8, which a converter might convert to a java.sql.Timestamp
+	public static class Instant implements Serializable {
+		private static final long serialVersionUID = 1L;
+
+		private long javaMillis;
+
+		public Instant(long javaMillis) {
+			this.javaMillis = javaMillis;
+		}
+
+		public long toJavaMillis() {
+			return javaMillis;
+		}
+
+		public static Instant fromJavaMillis(long javaMillis) {
+			return new Instant( javaMillis );
+		}
+
+		public static Instant now() {
+			return new Instant( System.currentTimeMillis() );
+		}
+	}
+
+	@Entity
+	public static class IrrelevantInstantEntity {
+		@Id
+		private Long id;
+		private Instant dateCreated;
+
+		public IrrelevantInstantEntity() {
+		}
+
+		public IrrelevantInstantEntity(Long id) {
+			this( id, Instant.now() );
+		}
+
+		public IrrelevantInstantEntity(Long id, Instant dateCreated) {
+			this.id = id;
+			this.dateCreated = dateCreated;
+		}
+
+		public Long getId() {
+			return id;
+		}
+
+		public void setId(Long id) {
+			this.id = id;
+		}
+
+		public Instant getDateCreated() {
+			return dateCreated;
+		}
+
+		public void setDateCreated(Instant dateCreated) {
+			this.dateCreated = dateCreated;
+		}
+	}
+
+
+	// Converter declarations used in the test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	@Converter(autoApply = false)
+	public static class NotAutoAppliedConverter implements AttributeConverter<String,String> {
 		@Override
-		public Clob convertToDatabaseColumn(String attribute) {
-			return null;
+		public String convertToDatabaseColumn(String attribute) {
+			throw new IllegalStateException( "AttributeConverter should not have been applied/called" );
 		}
 
 		@Override
-		public String convertToEntityAttribute(Clob dbData) {
-			return null;
+		public String convertToEntityAttribute(String dbData) {
+			throw new IllegalStateException( "AttributeConverter should not have been applied/called" );
+		}
+	}
+
+	@Converter( autoApply = true )
+	public static class IntegerToVarcharConverter implements AttributeConverter<Integer,String> {
+		@Override
+		public String convertToDatabaseColumn(Integer attribute) {
+			return attribute == null ? null : attribute.toString();
+		}
+
+		@Override
+		public Integer convertToEntityAttribute(String dbData) {
+			return dbData == null ? null : Integer.valueOf( dbData );
+		}
+	}
+
+
+	@Converter( autoApply = true )
+	public static class InstantConverter implements AttributeConverter<Instant, Timestamp> {
+		@Override
+		public Timestamp convertToDatabaseColumn(Instant attribute) {
+			return new Timestamp( attribute.toJavaMillis() );
+		}
+
+		@Override
+		public Instant convertToEntityAttribute(Timestamp dbData) {
+			return Instant.fromJavaMillis( dbData.getTime() );
 		}
 	}
 }

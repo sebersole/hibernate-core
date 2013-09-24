@@ -43,7 +43,7 @@ public class JdbcDateTypeDescriptor extends AbstractTypeDescriptor<Date> {
 
 	public static class DateMutabilityPlan extends MutableMutabilityPlan<Date> {
 		public static final DateMutabilityPlan INSTANCE = new DateMutabilityPlan();
-
+		@Override
 		public Date deepCopyNotNull(Date value) {
 			return java.sql.Date.class.isInstance( value )
 					? new java.sql.Date( value.getTime() )
@@ -54,11 +54,11 @@ public class JdbcDateTypeDescriptor extends AbstractTypeDescriptor<Date> {
 	public JdbcDateTypeDescriptor() {
 		super( Date.class, DateMutabilityPlan.INSTANCE );
 	}
-
+	@Override
 	public String toString(Date value) {
 		return new SimpleDateFormat( DATE_FORMAT ).format( value );
 	}
-
+	@Override
 	public Date fromString(String string) {
 		try {
 			return new Date( new SimpleDateFormat(DATE_FORMAT).parse( string ).getTime() );
@@ -103,6 +103,7 @@ public class JdbcDateTypeDescriptor extends AbstractTypeDescriptor<Date> {
 	}
 
 	@SuppressWarnings({ "unchecked" })
+	@Override
 	public <X> X unwrap(Date value, Class<X> type, WrapperOptions options) {
 		if ( value == null ) {
 			return null;
@@ -138,28 +139,35 @@ public class JdbcDateTypeDescriptor extends AbstractTypeDescriptor<Date> {
 		}
 		throw unknownUnwrap( type );
 	}
-
-	@SuppressWarnings({ "UnnecessaryUnboxing" })
+	@Override
 	public <X> Date wrap(X value, WrapperOptions options) {
+		java.sql.Date date = null;
+		
 		if ( value == null ) {
 			return null;
 		}
-		if ( Date.class.isInstance( value ) ) {
-			return (Date) value;
+		if ( java.sql.Date.class.isInstance( value ) ) {
+			date = (java.sql.Date) value;
 		}
 
 		if ( Long.class.isInstance( value ) ) {
-			return new java.sql.Date( ( (Long) value ).longValue() );
+			date = new java.sql.Date( ( (Long) value ).longValue() );
 		}
 
 		if ( Calendar.class.isInstance( value ) ) {
-			return new java.sql.Date( ( (Calendar) value ).getTimeInMillis() );
+			date = new java.sql.Date( ( (Calendar) value ).getTimeInMillis() );
 		}
 
-		if ( java.util.Date.class.isInstance( value ) ) {
-			return new java.sql.Date( ( (java.util.Date) value ).getTime() );
+		if ( Date.class.isInstance( value ) ) {
+			date = new java.sql.Date( ( (java.util.Date) value ).getTime() );
 		}
 
-		throw unknownWrap( value.getClass() );
+		if ( date == null ) {
+			throw unknownWrap( value.getClass() );
+		}
+		
+		// Some JDBC drivers (*ahem* Oracle 12c) are incorrect and, even though rs#getDate is used, return the Date
+		// without the time stripped.  For extra safety, ensure here.
+		return new java.sql.Date(date.getYear(), date.getMonth(), date.getDate());
 	}
 }

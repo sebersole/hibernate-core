@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -51,7 +52,9 @@ import org.jboss.logging.Logger;
 public class ClassLoaderServiceImpl implements ClassLoaderService {
 	private static final Logger log = Logger.getLogger( ClassLoaderServiceImpl.class );
 
-	private final ClassLoader aggregatedClassLoader;
+	private AggregatedClassLoader aggregatedClassLoader;
+	
+	private final Map<Class, ServiceLoader> serviceLoaders = new HashMap<Class, ServiceLoader>();
 
 	/**
 	 * Constructs a ClassLoaderServiceImpl with standard set-up
@@ -77,7 +80,7 @@ public class ClassLoaderServiceImpl implements ClassLoaderService {
 	public ClassLoaderServiceImpl(Collection<ClassLoader> providedClassLoaders) {
 		final LinkedHashSet<ClassLoader> orderedClassLoaderSet = new LinkedHashSet<ClassLoader>();
 
-		// first add all provided class loaders, if any
+		// first, add all provided class loaders, if any
 		if ( providedClassLoaders != null ) {
 			for ( ClassLoader classLoader : providedClassLoaders ) {
 				if ( classLoader != null ) {
@@ -87,8 +90,9 @@ public class ClassLoaderServiceImpl implements ClassLoaderService {
 		}
 
 		// normalize adding known class-loaders...
-		// first, the Hibernate class loader
+		// then the Hibernate class loader
 		orderedClassLoaderSet.add( ClassLoaderServiceImpl.class.getClassLoader() );
+		
 		// then the TCCL, if one...
 		final ClassLoader tccl = locateTCCL();
 		if ( tccl != null ) {
@@ -168,7 +172,7 @@ public class ClassLoaderServiceImpl implements ClassLoaderService {
 	}
 
 	private static class AggregatedClassLoader extends ClassLoader {
-		private final ClassLoader[] individualClassLoaders;
+		private ClassLoader[] individualClassLoaders;
 
 		private AggregatedClassLoader(final LinkedHashSet<ClassLoader> orderedClassLoaderSet) {
 			super( null );
@@ -223,7 +227,11 @@ public class ClassLoaderServiceImpl implements ClassLoaderService {
 
 			throw new ClassNotFoundException( "Could not load requested class : " + name );
 		}
-	}
+
+        public void destroy() {
+            individualClassLoaders = null;
+        }
+    }
 
 	@Override
 	@SuppressWarnings( {"unchecked"})
@@ -317,14 +325,34 @@ public class ClassLoaderServiceImpl implements ClassLoaderService {
 
 	@Override
 	public <S> LinkedHashSet<S> loadJavaServices(Class<S> serviceContract) {
-		final ServiceLoader<S> loader = ServiceLoader.load( serviceContract, aggregatedClassLoader );
+		ServiceLoader<S> serviceLoader;
+		if ( serviceLoaders.containsKey( serviceContract ) ) {
+			serviceLoader = serviceLoaders.get( serviceContract );
+		}
+		else {
+			serviceLoader = ServiceLoader.load( serviceContract, aggregatedClassLoader );
+			serviceLoaders.put( serviceContract, serviceLoader );
+		}
+		
 		final LinkedHashSet<S> services = new LinkedHashSet<S>();
-		for ( S service : loader ) {
+		for ( S service : serviceLoader ) {
 			services.add( service );
 		}
-
 		return services;
 	}
+
+    @Override
+    public void stop() {
+		for ( ServiceLoader serviceLoader : serviceLoaders.values() ) {
+			serviceLoader.reload(); // clear service loader providers
+		}
+		serviceLoaders.clear();
+		
+		if ( aggregatedClassLoader != null ) {
+			aggregatedClassLoader.destroy();
+			aggregatedClassLoader = null;
+		}
+    }
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// completely temporary !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

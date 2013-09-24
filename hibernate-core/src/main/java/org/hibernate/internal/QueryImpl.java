@@ -23,10 +23,12 @@
  *
  */
 package org.hibernate.internal;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.hibernate.Filter;
 import org.hibernate.FlushMode;
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
@@ -76,7 +78,7 @@ public class QueryImpl extends AbstractQueryImpl {
 	}
 
 	public ScrollableResults scroll() throws HibernateException {
-		return scroll( ScrollMode.SCROLL_INSENSITIVE );
+		return scroll( session.getFactory().getDialect().defaultScrollMode() );
 	}
 
 	public ScrollableResults scroll(ScrollMode scrollMode) throws HibernateException {
@@ -139,10 +141,9 @@ public class QueryImpl extends AbstractQueryImpl {
 		return lockOptions;
 	}
 
+	public boolean isSelect() {
+		return getSession().getFactory().getQueryPlanCache()
+				.getHQLQueryPlan( getQueryString(), false, Collections.<String, Filter>emptyMap() )
+				.isSelect();
+	}
 }
-
-
-
-
-
-

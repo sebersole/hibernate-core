@@ -42,6 +42,7 @@ import org.hibernate.ScrollMode;
 import org.hibernate.ScrollableResults;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.engine.query.spi.ParameterMetadata;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryConstructorReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryJoinReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryRootReturn;
@@ -171,7 +172,7 @@ public class SQLQueryImpl extends AbstractQueryImpl implements SQLQuery {
 	}
 
 	public ScrollableResults scroll() throws HibernateException {
-		return scroll(ScrollMode.SCROLL_INSENSITIVE);
+		return scroll( session.getFactory().getDialect().defaultScrollMode() );
 	}
 
 	public Iterator iterate() throws HibernateException {
@@ -204,6 +205,10 @@ public class SQLQueryImpl extends AbstractQueryImpl implements SQLQuery {
 						autoDiscoverTypes = true;
 						break;
 					}
+				}
+				else if ( NativeSQLQueryConstructorReturn.class.isInstance( queryReturn ) ) {
+					autoDiscoverTypes = true;
+					break;
 				}
 			}
 		}

@@ -29,14 +29,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import javax.persistence.criteria.Expression;
+import javax.persistence.criteria.ParameterExpression;
 import javax.persistence.criteria.Subquery;
 
+import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.jpa.criteria.CriteriaBuilderImpl;
 import org.hibernate.jpa.criteria.ParameterRegistry;
 import org.hibernate.jpa.criteria.Renderable;
 import org.hibernate.jpa.criteria.ValueHandlerFactory;
 import org.hibernate.jpa.criteria.compile.RenderingContext;
 import org.hibernate.jpa.criteria.expression.LiteralExpression;
+import org.hibernate.jpa.criteria.expression.ParameterExpressionImpl;
+import org.hibernate.type.Type;
 
 /**
  * Models an <tt>[NOT] IN</tt> restriction
@@ -130,6 +135,7 @@ public class InPredicate<T>
 		}
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
 	public Expression<T> getExpression() {
 		return ( Expression<T> ) expression;
@@ -143,15 +149,18 @@ public class InPredicate<T>
 		return values;
 	}
 
+	@Override
 	public InPredicate<T> value(T value) {
 		return value( new LiteralExpression<T>( criteriaBuilder(), value ) );
 	}
 
+	@Override
 	public InPredicate<T> value(Expression<? extends T> value) {
 		values.add( value );
 		return this;
 	}
 
+	@Override
 	public void registerParameters(ParameterRegistry registry) {
 		Helper.possibleParameter( getExpressionInternal(), registry );
 		for ( Expression value : getValues() ) {
@@ -159,12 +168,27 @@ public class InPredicate<T>
 		}
 	}
 
-	public String render(RenderingContext renderingContext) {
-		StringBuilder buffer = new StringBuilder();
+	@Override
+	public String render(boolean isNegated, RenderingContext renderingContext) {
+		final StringBuilder buffer = new StringBuilder();
+		final Expression exp = getExpression();
+		if ( ParameterExpressionImpl.class.isInstance( exp ) ) {
+			// technically we only need to CAST (afaik) if expression and all values are parameters.
+			// but checking for that condition could take long time on a lon value list
+			final ParameterExpressionImpl parameterExpression = (ParameterExpressionImpl) exp;
+			final SessionFactoryImplementor sfi = criteriaBuilder().getEntityManagerFactory().unwrap( SessionFactoryImplementor.class );
+			final Type mappingType = sfi.getTypeResolver().heuristicType( parameterExpression.getParameterType().getName() );
+			buffer.append( "cast(" )
+					.append( parameterExpression.render( renderingContext ) )
+					.append( " as " )
+					.append( mappingType.getName() )
+					.append( ")" );
+		}
+		else {
+			buffer.append( ( (Renderable) getExpression() ).render( renderingContext ) );
+		}
 
-		buffer.append( ( (Renderable) getExpression() ).render( renderingContext ) );
-
-		if ( isNegated() ) {
+		if ( isNegated ) {
 			buffer.append( " not" );
 		}
 		buffer.append( " in " );
@@ -187,9 +211,5 @@ public class InPredicate<T>
 			buffer.append( ')' );
 		}
 		return buffer.toString();
-	}
-
-	public String renderProjection(RenderingContext renderingContext) {
-		return render( renderingContext );
 	}
 }

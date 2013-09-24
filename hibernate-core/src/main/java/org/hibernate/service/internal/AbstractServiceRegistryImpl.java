@@ -85,7 +85,8 @@ public abstract class AbstractServiceRegistryImpl
 
 	@SuppressWarnings({ "unchecked" })
 	protected <R extends Service> void createServiceBinding(ServiceInitiator<R> initiator) {
-		serviceBindingMap.put( initiator.getServiceInitiated(), new ServiceBinding( this, initiator ) );
+		final ServiceBinding serviceBinding = new ServiceBinding( this, initiator );
+		serviceBindingMap.put( initiator.getServiceInitiated(), serviceBinding );
 	}
 
 	protected <R extends Service> void createServiceBinding(ProvidedService<R> providedService) {

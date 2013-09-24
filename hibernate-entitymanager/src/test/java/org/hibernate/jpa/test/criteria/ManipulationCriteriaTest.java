@@ -23,6 +23,7 @@
  */
 package org.hibernate.jpa.test.criteria;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import javax.persistence.EntityManager;
@@ -106,11 +107,13 @@ public class ManipulationCriteriaTest extends AbstractMetamodelSpecificTest {
 			em.createQuery( updateCriteria ).executeUpdate();
 			fail( "Expecting failure due to no assignments" );
 		}
-		catch (IllegalStateException ise) {
+		catch (IllegalArgumentException iae) {
 			// expected
 		}
 
-		em.getTransaction().commit();
+		// changed to rollback since HHH-8442 causes transaction to be marked for rollback only
+		assertTrue( em.getTransaction().getRollbackOnly() );
+		em.getTransaction().rollback();
 		em.close();
 	}
 

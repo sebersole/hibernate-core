@@ -26,23 +26,29 @@
 
 package org.hibernate.cfg.annotations.reflection;
 
+import javax.persistence.AccessType;
+import javax.persistence.AttributeConverter;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.persistence.AccessType;
 
 import org.dom4j.Document;
 import org.dom4j.Element;
+
 import org.jboss.logging.Logger;
 
 import org.hibernate.AnnotationException;
+import org.hibernate.cfg.AttributeConverterDefinition;
+import org.hibernate.cfg.Configuration;
 import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 
 /**
  * @author Emmanuel Bernard
+ * @author Brett Meyer
  */
 public class XMLContext implements Serializable {
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, XMLContext.class.getName());
@@ -104,6 +110,8 @@ public class XMLContext implements Serializable {
 		unitElement = root.element( "access" );
 		setAccess( unitElement, entityMappingDefault );
 		defaultElements.add( root );
+		
+		setLocalAttributeConverterDefinitions( root.elements( "converter" ) );
 
 		List<Element> entities = root.elements( "entity" );
 		addClass( entities, packageName, entityMappingDefault, addedClasses );
@@ -184,6 +192,30 @@ public class XMLContext implements Serializable {
 		addedClasses.addAll( localAddedClasses );
 		return localAddedClasses;
 	}
+	
+	@SuppressWarnings("unchecked")
+	private void setLocalAttributeConverterDefinitions(List<Element> converterElements) {
+		for ( Element converterElement : converterElements ) {
+			final String className = converterElement.attributeValue( "class" );
+			final String autoApplyAttribute = converterElement.attributeValue( "auto-apply" );
+			final boolean autoApply = autoApplyAttribute != null && Boolean.parseBoolean( autoApplyAttribute );
+
+			try {
+				final Class<? extends AttributeConverter> attributeConverterClass = ReflectHelper.classForName(
+						className
+				);
+				attributeConverterDefinitions.add(
+						new AttributeConverterDefinition( attributeConverterClass.newInstance(), autoApply )
+				);
+			}
+			catch (ClassNotFoundException e) {
+				throw new AnnotationException( "Unable to locate specified AttributeConverter implementation class : " + className, e );
+			}
+			catch (Exception e) {
+				throw new AnnotationException( "Unable to instantiate specified AttributeConverter implementation class : " + className, e );
+			}
+		}
+	}
 
 	public static String buildSafeClassName(String className, String defaultPackageName) {
 		if ( className.indexOf( '.' ) < 0 && StringHelper.isNotEmpty( defaultPackageName ) ) {
@@ -216,6 +248,15 @@ public class XMLContext implements Serializable {
 
 	public boolean hasContext() {
 		return hasContext;
+	}
+
+	private List<AttributeConverterDefinition> attributeConverterDefinitions = new ArrayList<AttributeConverterDefinition>();
+
+	public void applyDiscoveredAttributeConverters(Configuration configuration) {
+		for ( AttributeConverterDefinition definition : attributeConverterDefinitions ) {
+			configuration.addAttributeConverter( definition );
+		}
+		attributeConverterDefinitions.clear();
 	}
 
 	public static class Default implements Serializable {

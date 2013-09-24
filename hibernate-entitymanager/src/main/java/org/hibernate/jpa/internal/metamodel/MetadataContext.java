@@ -68,7 +68,8 @@ class MetadataContext {
                                                                            MetadataContext.class.getName());
 
 	private final SessionFactoryImplementor sessionFactory;
-    private final boolean ignoreUnsupported;
+	private Set<MappedSuperclass> knownMappedSuperclasses;
+	private final boolean ignoreUnsupported;
 	private final AttributeFactory attributeFactory = new AttributeFactory( this );
 
 	private Map<Class<?>,EntityTypeImpl<?>> entityTypes
@@ -92,9 +93,13 @@ class MetadataContext {
 	private Map<MappedSuperclassTypeImpl<?>, PersistentClass> mappedSuperClassTypeToPersistentClass
 			= new HashMap<MappedSuperclassTypeImpl<?>, PersistentClass>();
 
-	public MetadataContext(SessionFactoryImplementor sessionFactory, boolean ignoreUnsupported) {
+	public MetadataContext(
+			SessionFactoryImplementor sessionFactory,
+			Set<MappedSuperclass> mappedSuperclasses,
+			boolean ignoreUnsupported) {
 		this.sessionFactory = sessionFactory;
-        this.ignoreUnsupported = ignoreUnsupported;
+		this.knownMappedSuperclasses = mappedSuperclasses;
+		this.ignoreUnsupported = ignoreUnsupported;
 	}
 
 	/*package*/ SessionFactoryImplementor getSessionFactory() {
@@ -145,11 +150,14 @@ class MetadataContext {
 		embeddables.put( embeddableType.getJavaType(), embeddableType );
 	}
 
-	/*package*/ void registerMappedSuperclassType(MappedSuperclass mappedSuperclass,
-												  MappedSuperclassTypeImpl<?> mappedSuperclassType) {
+	/*package*/ void registerMappedSuperclassType(
+			MappedSuperclass mappedSuperclass,
+			MappedSuperclassTypeImpl<?> mappedSuperclassType) {
 		mappedSuperclassByMappedSuperclassMapping.put( mappedSuperclass, mappedSuperclassType );
 		orderedMappings.add( mappedSuperclass );
 		mappedSuperClassTypeToPersistentClass.put( mappedSuperclassType, getEntityWorkedOn() );
+
+		knownMappedSuperclasses.remove( mappedSuperclass );
 	}
 
 	/**
@@ -192,6 +200,7 @@ class MetadataContext {
     @SuppressWarnings({ "unchecked" })
 	public void wrapUp() {
         LOG.trace("Wrapping up metadata context...");
+
 		//we need to process types from superclasses to subclasses
 		for (Object mapping : orderedMappings) {
 			if ( PersistentClass.class.isAssignableFrom( mapping.getClass() ) ) {
@@ -393,8 +402,8 @@ class MetadataContext {
 			}
 
 			// handle id-class mappings specially
-			if ( ! entityType.hasSingleIdAttribute() ) {
-				final Set<SingularAttribute<? super X, ?>> attributes = entityType.getIdClassAttributes();
+			if ( entityType.hasIdClass() ) {
+				final Set<SingularAttribute<? super X, ?>> attributes = entityType.getIdClassAttributesSafely();
 				if ( attributes != null ) {
 					for ( SingularAttribute<? super X, ?> attribute : attributes ) {
 						registerAttribute( metamodelClass, attribute );
@@ -489,5 +498,9 @@ class MetadataContext {
 					+ mappedSuperclassType.getJavaType() );
 		}
 		return persistentClass;
+	}
+
+	public Set<MappedSuperclass> getUnusedMappedSuperclasses() {
+		return new HashSet<MappedSuperclass>( knownMappedSuperclasses );
 	}
 }

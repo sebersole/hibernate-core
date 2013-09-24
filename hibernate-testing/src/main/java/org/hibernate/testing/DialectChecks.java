@@ -44,6 +44,12 @@ abstract public class DialectChecks {
 		}
 	}
 
+	public static class UsesInputStreamToInsertBlob implements DialectCheck {
+		public boolean isMatch(Dialect dialect) {
+			return dialect.useInputStreamToInsertBlob();
+		}
+	}
+
 	public static class SupportsIdentityColumns implements DialectCheck {
 		public boolean isMatch(Dialect dialect) {
 			return dialect.supportsIdentityColumns();
@@ -71,6 +77,12 @@ abstract public class DialectChecks {
 	public static class SupportsResultSetPositioningOnForwardOnlyCursorCheck implements DialectCheck {
 		public boolean isMatch(Dialect dialect) {
 			return dialect.supportsResultSetPositionQueryMethodsOnForwardOnlyCursor();
+		}
+	}
+
+	public static class SupportsCascadeDeleteCheck implements DialectCheck {
+		public boolean isMatch(Dialect dialect) {
+			return dialect.supportsCascadeDelete();
 		}
 	}
 

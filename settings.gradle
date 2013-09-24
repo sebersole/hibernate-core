@@ -10,6 +10,8 @@ include 'hibernate-proxool'
 
 include 'hibernate-ehcache'
 include 'hibernate-infinispan'
+include 'hibernate-gradle-plugin'
+include 'hibernate-maven-plugin'
 include 'documentation'
 include 'release'
 

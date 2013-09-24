@@ -23,8 +23,6 @@
  */
 package org.hibernate.engine.jdbc.dialect.internal;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.dialect.CUBRIDDialect;
 import org.hibernate.dialect.DB2400Dialect;
 import org.hibernate.dialect.DB2Dialect;
@@ -39,19 +37,24 @@ import org.hibernate.dialect.InformixDialect;
 import org.hibernate.dialect.Ingres10Dialect;
 import org.hibernate.dialect.Ingres9Dialect;
 import org.hibernate.dialect.IngresDialect;
+import org.hibernate.dialect.MySQL5Dialect;
 import org.hibernate.dialect.MySQLDialect;
 import org.hibernate.dialect.Oracle10gDialect;
 import org.hibernate.dialect.Oracle8iDialect;
 import org.hibernate.dialect.Oracle9iDialect;
 import org.hibernate.dialect.PostgreSQL81Dialect;
 import org.hibernate.dialect.PostgreSQL82Dialect;
+import org.hibernate.dialect.PostgreSQL9Dialect;
+import org.hibernate.dialect.PostgresPlusDialect;
 import org.hibernate.dialect.SQLServer2005Dialect;
 import org.hibernate.dialect.SQLServer2008Dialect;
+import org.hibernate.dialect.SQLServer2012Dialect;
 import org.hibernate.dialect.SQLServerDialect;
 import org.hibernate.dialect.SybaseASE15Dialect;
 import org.hibernate.dialect.SybaseAnywhereDialect;
 import org.hibernate.engine.jdbc.dialect.spi.DatabaseInfoDialectResolver;
 import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
 
 /**
  * The standard DatabaseInfoDialectResolver implementation
@@ -86,6 +89,12 @@ public class StandardDatabaseInfoDialectResolver implements DatabaseInfoDialectR
 		}
 
 		if ( "MySQL".equals( databaseName ) ) {
+			final int majorVersion = databaseInfo.getDatabaseMajorVersion();
+			
+			if (majorVersion >= 5 ) {
+				return new MySQL5Dialect();
+			}
+			
 			return new MySQLDialect();
 		}
 
@@ -93,10 +102,19 @@ public class StandardDatabaseInfoDialectResolver implements DatabaseInfoDialectR
 			final int majorVersion = databaseInfo.getDatabaseMajorVersion();
 			final int minorVersion = databaseInfo.getDatabaseMinorVersion();
 
-			if ( majorVersion > 8 || ( majorVersion == 8 && minorVersion >= 2 ) ) {
+			if ( majorVersion == 9 ) {
+				return new PostgreSQL9Dialect();
+			}
+			
+			if ( majorVersion == 8 && minorVersion >= 2 ) {
 				return new PostgreSQL82Dialect();
 			}
+			
 			return new PostgreSQL81Dialect();
+		}
+		
+		if ( "EnterpriseDB".equals( databaseName ) ) {
+			return new PostgresPlusDialect();
 		}
 
 		if ( "Apache Derby".equals( databaseName ) ) {
@@ -144,8 +162,9 @@ public class StandardDatabaseInfoDialectResolver implements DatabaseInfoDialectR
 				case 9:
 					return new SQLServer2005Dialect();
 				case 10:
-				case 11:
 					return new SQLServer2008Dialect();
+				case 11:
+					return new SQLServer2012Dialect();
 				default:
 					LOG.unknownSqlServerVersion( majorVersion );
 			}

@@ -50,32 +50,18 @@ public class BooleanStaticAssertionPredicate
 		return assertedValue;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void registerParameters(ParameterRegistry registry) {
 		// nada
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
-	public String render(RenderingContext renderingContext) {
+	@Override
+	public String render(boolean isNegated, RenderingContext renderingContext) {
 		boolean isTrue = getAssertedValue();
-		if ( isNegated() ) {
+		if ( isNegated ) {
 			isTrue = !isTrue;
 		}
-
-		return isTrue
-				? "1=1"
-				: "0=1";
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	public String renderProjection(RenderingContext renderingContext) {
-		return render( renderingContext );
+		return isTrue ? "1=1" : "0=1";
 	}
 
 }

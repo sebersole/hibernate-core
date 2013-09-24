@@ -26,8 +26,8 @@ package org.hibernate.jpa.spi;
 import javax.persistence.CacheRetrieveMode;
 import javax.persistence.CacheStoreMode;
 import javax.persistence.FlushModeType;
+import javax.persistence.LockModeType;
 import javax.persistence.Parameter;
-import javax.persistence.ParameterMode;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
 import java.util.Calendar;
@@ -51,6 +51,8 @@ import org.hibernate.jpa.internal.EntityManagerMessageLogger;
 import org.hibernate.jpa.internal.util.CacheModeHelper;
 import org.hibernate.jpa.internal.util.ConfigurationHelper;
 import org.hibernate.jpa.internal.util.LockModeTypeHelper;
+import org.hibernate.procedure.NoSuchParameterException;
+import org.hibernate.procedure.ParameterStrategyException;
 
 import static org.hibernate.jpa.QueryHints.HINT_CACHEABLE;
 import static org.hibernate.jpa.QueryHints.HINT_CACHE_MODE;
@@ -58,6 +60,7 @@ import static org.hibernate.jpa.QueryHints.HINT_CACHE_REGION;
 import static org.hibernate.jpa.QueryHints.HINT_COMMENT;
 import static org.hibernate.jpa.QueryHints.HINT_FETCH_SIZE;
 import static org.hibernate.jpa.QueryHints.HINT_FLUSH_MODE;
+import static org.hibernate.jpa.QueryHints.HINT_NATIVE_LOCKMODE;
 import static org.hibernate.jpa.QueryHints.HINT_READONLY;
 import static org.hibernate.jpa.QueryHints.HINT_TIMEOUT;
 import static org.hibernate.jpa.QueryHints.SPEC_HINT_TIMEOUT;
@@ -329,6 +332,31 @@ public abstract class BaseQueryImpl implements Query {
 						CacheModeHelper.interpretCacheMode( storeMode, retrieveMode )
 				);
 			}
+			else if ( QueryHints.HINT_NATIVE_LOCKMODE.equals( hintName ) ) {
+				if ( !isNativeSqlQuery() ) {
+					throw new IllegalStateException(
+							"Illegal attempt to set lock mode on non-native query via hint; use Query#setLockMode instead"
+					);
+				}
+				if ( LockMode.class.isInstance( value ) ) {
+					internalApplyLockMode( LockModeTypeHelper.getLockModeType( (LockMode) value ) );
+				}
+				else if ( LockModeType.class.isInstance( value ) ) {
+					internalApplyLockMode( (LockModeType) value );
+				}
+				else {
+					throw new IllegalArgumentException(
+							String.format(
+									"Native lock-mode hint [%s] must specify %s or %s.  Encountered type : %s",
+									HINT_NATIVE_LOCKMODE,
+									LockMode.class.getName(),
+									LockModeType.class.getName(),
+									value.getClass().getName()
+							)
+					);
+				}
+				applied = true;
+			}
 			else if ( hintName.startsWith( AvailableSettings.ALIAS_SPECIFIC_LOCK_MODE ) ) {
 				if ( canApplyAliasSpecificLockModeHints() ) {
 					// extract the alias
@@ -368,6 +396,21 @@ public abstract class BaseQueryImpl implements Query {
 		return this;
 	}
 
+	/**
+	 * Is the query represented here a native SQL query?
+	 *
+	 * @return {@code true} if it is a native SQL query; {@code false} otherwise
+	 */
+	protected abstract boolean isNativeSqlQuery();
+
+	/**
+	 * Is the query represented here a SELECT query?
+	 *
+	 * @return {@code true} if the query is a SELECT; {@code false} otherwise.
+	 */
+	protected abstract boolean isSelectQuery();
+
+	protected abstract void internalApplyLockMode(javax.persistence.LockModeType lockModeType);
 
 	// FlushMode ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -407,7 +450,12 @@ public abstract class BaseQueryImpl implements Query {
 
 	protected <X> ParameterRegistration<X> findParameterRegistration(Parameter<X> parameter) {
 		if ( ParameterRegistration.class.isInstance( parameter ) ) {
-			return (ParameterRegistration<X>) parameter;
+			final ParameterRegistration<X> reg = (ParameterRegistration<X>) parameter;
+			// validate the parameter source
+			if ( reg.getQuery() != this ) {
+				throw new IllegalArgumentException( "Passed Parameter was from different Query" );
+			}
+			return reg;
 		}
 		else {
 			if ( parameter.getName() != null ) {
@@ -423,46 +471,48 @@ public abstract class BaseQueryImpl implements Query {
 
 	@SuppressWarnings("unchecked")
 	protected <X> ParameterRegistration<X> findParameterRegistration(String parameterName) {
-		return (ParameterRegistration<X>) getParameter( parameterName );
+		final Integer jpaPositionalParameter = toNumberOrNull( parameterName );
+
+		if ( parameterRegistrations != null ) {
+			for ( ParameterRegistration<?> param : parameterRegistrations ) {
+				if ( parameterName.equals( param.getName() ) ) {
+					return (ParameterRegistration<X>) param;
+				}
+
+				// legacy allowance of the application to access the parameter using the position as a String
+				if ( param.isJpaPositionalParameter() && jpaPositionalParameter != null ) {
+					if ( jpaPositionalParameter.equals( param.getPosition() ) ) {
+						LOG.deprecatedJpaPositionalParameterAccess( jpaPositionalParameter );
+					}
+					return (ParameterRegistration<X>) param;
+				}
+			}
+		}
+		throw new IllegalArgumentException( "Parameter with that name [" + parameterName + "] did not exist" );
+	}
+
+	private Integer toNumberOrNull(String parameterName) {
+		try {
+			return Integer.valueOf( parameterName );
+		}
+		catch (NumberFormatException e) {
+			return null;
+		}
 	}
 
 	@SuppressWarnings("unchecked")
 	protected <X> ParameterRegistration<X> findParameterRegistration(int parameterPosition) {
-		if ( isJpaPositionalParameter( parameterPosition ) ) {
-			return findParameterRegistration( Integer.toString( parameterPosition ) );
+		if ( parameterRegistrations != null ) {
+			for ( ParameterRegistration<?> param : parameterRegistrations ) {
+				if ( param.getPosition() == null ) {
+					continue;
+				}
+				if ( parameterPosition == param.getPosition() ) {
+					return (ParameterRegistration<X>) param;
+				}
+			}
 		}
-		else {
-			return (ParameterRegistration<X>) getParameter( parameterPosition );
-		}
-	}
-
-	protected abstract boolean isJpaPositionalParameter(int position);
-
-	/**
-	 * Hibernate specific extension to the JPA {@link javax.persistence.Parameter} contract.
-	 */
-	protected static interface ParameterRegistration<T> extends Parameter<T> {
-		/**
-		 * Retrieves the parameter "mode" which describes how the parameter is defined in the actual database procedure
-		 * definition (is it an INPUT parameter?  An OUTPUT parameter? etc).
-		 *
-		 * @return The parameter mode.
-		 */
-		public ParameterMode getMode();
-
-		public boolean isBindable();
-
-		public void bindValue(T value);
-
-		public void bindValue(T value, TemporalType specifiedTemporalType);
-
-		public ParameterBind<T> getBind();
-	}
-
-	protected static interface ParameterBind<T> {
-		public T getValue();
-
-		public TemporalType getSpecifiedTemporalType();
+		throw new IllegalArgumentException( "Parameter with that position [" + parameterPosition + "] did not exist" );
 	}
 
 	protected static class ParameterBindImpl<T> implements ParameterBind<T> {
@@ -512,7 +562,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( param ).bindValue( value );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -529,7 +580,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( param ).bindValue( value, temporalType );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -546,7 +598,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( param ).bindValue( value, temporalType );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -564,7 +617,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( name ).bindValue( value );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -581,7 +635,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( name ).bindValue( value, temporalType );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -598,7 +653,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( name ).bindValue( value, temporalType );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -615,7 +671,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( position ).bindValue( value );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -632,7 +689,8 @@ public abstract class BaseQueryImpl implements Query {
 			findParameterRegistration( position ).bindValue( value, temporalType );
 		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -648,8 +706,17 @@ public abstract class BaseQueryImpl implements Query {
 		try {
 			findParameterRegistration( position ).bindValue( value, temporalType );
 		}
+		catch (ParameterStrategyException e) {
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( "Invalid mix of named and positional parameters", e );
+		}
+		catch (NoSuchParameterException e) {
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
+		}
 		catch (QueryParameterException e) {
-			throw new IllegalArgumentException( e );
+			entityManager().markForRollbackOnly();
+			throw new IllegalArgumentException( e.getMessage(), e );
 		}
 		catch (HibernateException he) {
 			throw entityManager.convert( he );
@@ -668,21 +735,14 @@ public abstract class BaseQueryImpl implements Query {
 	@Override
 	public Parameter<?> getParameter(String name) {
 		checkOpen( false );
-		if ( parameterRegistrations != null ) {
-			for ( ParameterRegistration<?> param : parameterRegistrations ) {
-				if ( name.equals( param.getName() ) ) {
-					return param;
-				}
-			}
-		}
-		throw new IllegalArgumentException( "Parameter with that name [" + name + "] did not exist" );
+		return findParameterRegistration( name );
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
 	public <T> Parameter<T> getParameter(String name, Class<T> type) {
 		checkOpen( false );
-		Parameter param = getParameter( name );
+		Parameter param = findParameterRegistration( name );
 
 		if ( param.getParameterType() != null ) {
 			// we were able to determine the expected type during analysis, so validate it here
@@ -702,21 +762,8 @@ public abstract class BaseQueryImpl implements Query {
 
 	@Override
 	public Parameter<?> getParameter(int position) {
-		if ( isJpaPositionalParameter( position ) ) {
-			return getParameter( Integer.toString( position ) );
-		}
 		checkOpen( false );
-		if ( parameterRegistrations != null ) {
-			for ( ParameterRegistration<?> param : parameterRegistrations ) {
-				if ( param.getPosition() == null ) {
-					continue;
-				}
-				if ( position == param.getPosition() ) {
-					return param;
-				}
-			}
-		}
-		throw new IllegalArgumentException( "Parameter with that position [" + position + "] did not exist" );
+		return findParameterRegistration( position );
 	}
 
 	@Override
@@ -724,7 +771,7 @@ public abstract class BaseQueryImpl implements Query {
 	public <T> Parameter<T> getParameter(int position, Class<T> type) {
 		checkOpen( false );
 
-		Parameter param = getParameter( position );
+		Parameter param = findParameterRegistration( position );
 
 		if ( param.getParameterType() != null ) {
 			// we were able to determine the expected type during analysis, so validate it here
@@ -755,16 +802,20 @@ public abstract class BaseQueryImpl implements Query {
 		checkOpen( false );
 
 		final ParameterRegistration<T> registration = findParameterRegistration( param );
-		if ( registration != null ) {
-			if ( ! registration.isBindable() ) {
-				throw new IllegalArgumentException( "Passed parameter [" + param + "] is not bindable" );
-			}
-			final ParameterBind<T> bind = registration.getBind();
-			if ( bind != null ) {
-				return bind.getValue();
-			}
+		if ( registration == null ) {
+			throw new IllegalArgumentException( "Passed parameter [" + param + "] is not a (registered) parameter of this query" );
 		}
-		throw new IllegalStateException( "Parameter [" + param + "] has not yet been bound" );
+
+		if ( ! registration.isBindable() ) {
+			throw new IllegalStateException( "Passed parameter [" + param + "] is not bindable" );
+		}
+
+		final ParameterBind<T> bind = registration.getBind();
+		if ( bind == null ) {
+			throw new IllegalStateException( "Parameter [" + param + "] has not yet been bound" );
+		}
+
+		return bind.getValue();
 	}
 
 	@Override

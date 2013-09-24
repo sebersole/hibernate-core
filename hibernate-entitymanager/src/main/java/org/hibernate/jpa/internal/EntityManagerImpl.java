@@ -51,8 +51,7 @@ import org.hibernate.jpa.graph.internal.EntityGraphImpl;
  */
 public class EntityManagerImpl extends AbstractEntityManagerImpl implements SessionOwner {
 
-    public static final EntityManagerMessageLogger LOG = Logger.getMessageLogger(EntityManagerMessageLogger.class,
-                                                                          EntityManagerImpl.class.getName());
+    public static final EntityManagerMessageLogger LOG = HEMLogging.messageLogger( EntityManagerImpl.class.getName() );
 
 	protected Session session;
 	protected boolean open;
@@ -104,7 +103,7 @@ public class EntityManagerImpl extends AbstractEntityManagerImpl implements Sess
 	public void checkOpen(boolean markForRollbackIfClosed) {
 		if( ! isOpen() ) {
 			if ( markForRollbackIfClosed ) {
-				markAsRollback();
+				markForRollbackOnly();
 			}
 			throw new IllegalStateException( "EntityManager is closed" );
 		}
@@ -143,9 +142,6 @@ public class EntityManagerImpl extends AbstractEntityManagerImpl implements Sess
 			}
 			sessionBuilder.autoJoinTransactions( getTransactionType() != PersistenceUnitTransactionType.JTA );
 			session = sessionBuilder.openSession();
-			if ( persistenceContextType == PersistenceContextType.TRANSACTION ) {
-				( (SessionImplementor) session ).setAutoClear( true );
-			}
 		}
 		return session;
 	}
@@ -197,7 +193,7 @@ public class EntityManagerImpl extends AbstractEntityManagerImpl implements Sess
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public <T> EntityGraph<T> getEntityGraph(String graphName) {
+	public EntityGraph<?> getEntityGraph(String graphName) {
 		checkOpen();
 		final EntityGraphImpl named = getEntityManagerFactory().findEntityGraphByName( graphName );
 		if ( named == null ) {

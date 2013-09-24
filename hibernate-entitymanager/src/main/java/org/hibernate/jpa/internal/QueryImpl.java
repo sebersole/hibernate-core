@@ -45,6 +45,7 @@ import org.hibernate.CacheMode;
 import org.hibernate.FlushMode;
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
+import org.hibernate.SQLQuery;
 import org.hibernate.TypeMismatchException;
 import org.hibernate.engine.query.spi.NamedParameterDescriptor;
 import org.hibernate.engine.query.spi.OrdinalParameterDescriptor;
@@ -58,6 +59,10 @@ import org.hibernate.jpa.internal.util.ConfigurationHelper;
 import org.hibernate.jpa.internal.util.LockModeTypeHelper;
 import org.hibernate.jpa.spi.AbstractEntityManagerImpl;
 import org.hibernate.jpa.spi.AbstractQueryImpl;
+import org.hibernate.jpa.spi.ParameterBind;
+import org.hibernate.jpa.spi.ParameterRegistration;
+import org.hibernate.type.CompositeCustomType;
+import org.hibernate.type.Type;
 
 import static javax.persistence.TemporalType.DATE;
 import static javax.persistence.TemporalType.TIME;
@@ -75,7 +80,6 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
     public static final EntityManagerMessageLogger LOG = Logger.getMessageLogger(EntityManagerMessageLogger.class, QueryImpl.class.getName());
 
 	private org.hibernate.Query query;
-	private Set<Integer> jpaPositionalIndices;
 
 	public QueryImpl(org.hibernate.Query query, AbstractEntityManagerImpl em) {
 		this( query, em, Collections.<String, Class>emptyMap() );
@@ -90,11 +94,27 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 		extractParameterInfo( namedParameterTypeRedefinitions );
 	}
 
+	@Override
+	protected boolean isNativeSqlQuery() {
+		return SQLQuery.class.isInstance( query );
+	}
+
+	@Override
+	protected boolean isSelectQuery() {
+		if ( isNativeSqlQuery() ) {
+			throw new IllegalStateException( "Cannot tell if native SQL query is SELECT query" );
+		}
+
+		return org.hibernate.internal.QueryImpl.class.cast( query ).isSelect();
+	}
+
 	@SuppressWarnings({ "unchecked", "RedundantCast" })
 	private void extractParameterInfo(Map<String,Class> namedParameterTypeRedefinition) {
 		if ( ! org.hibernate.internal.AbstractQueryImpl.class.isInstance( query ) ) {
 			throw new IllegalStateException( "Unknown query type for parameter extraction" );
 		}
+
+		boolean hadJpaPositionalParameters = false;
 
 		final ParameterMetadata parameterMetadata = org.hibernate.internal.AbstractQueryImpl.class.cast( query ).getParameterMetadata();
 
@@ -102,7 +122,7 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 		for ( String name : (Set<String>) parameterMetadata.getNamedParameterNames() ) {
 			final NamedParameterDescriptor descriptor = parameterMetadata.getNamedParameterDescriptor( name );
 			Class javaType = namedParameterTypeRedefinition.get( name );
-			if ( javaType != null && mightNeedRedefinition( javaType ) ) {
+			if ( javaType != null && mightNeedRedefinition( javaType, descriptor.getExpectedType() ) ) {
 				descriptor.resetExpectedType(
 						sfi().getTypeResolver().heuristicType( javaType.getName() )
 				);
@@ -110,24 +130,30 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 			else if ( descriptor.getExpectedType() != null ) {
 				javaType = descriptor.getExpectedType().getReturnedClass();
 			}
-			registerParameter( new ParameterRegistrationImpl( query, name, javaType ) );
+
 			if ( descriptor.isJpaStyle() ) {
-				if ( jpaPositionalIndices == null ) {
-					jpaPositionalIndices = new HashSet<Integer>();
-				}
-				jpaPositionalIndices.add( Integer.valueOf( name ) );
+				hadJpaPositionalParameters = true;
+				final Integer position = Integer.valueOf( name );
+				registerParameter( new JpaPositionalParameterRegistrationImpl( this, query, position, javaType ) );
+			}
+			else {
+				registerParameter( new ParameterRegistrationImpl( this, query, name, javaType ) );
 			}
 		}
 
-		// extract positional parameters
+		if ( hadJpaPositionalParameters ) {
+			if ( parameterMetadata.getOrdinalParameterCount() > 0 ) {
+				throw new IllegalArgumentException(
+						"Cannot mix JPA positional parameters and native Hibernate positional/ordinal parameters"
+				);
+			}
+		}
+
+		// extract Hibernate native positional parameters
 		for ( int i = 0, max = parameterMetadata.getOrdinalParameterCount(); i < max; i++ ) {
 			final OrdinalParameterDescriptor descriptor = parameterMetadata.getOrdinalParameterDescriptor( i + 1 );
 			Class javaType = descriptor.getExpectedType() == null ? null : descriptor.getExpectedType().getReturnedClass();
-			registerParameter( new ParameterRegistrationImpl( query, i+1, javaType ) );
-			Integer position = descriptor.getOrdinalPosition();
-            if ( jpaPositionalIndices != null && jpaPositionalIndices.contains(position) ) {
-				LOG.parameterPositionOccurredAsBothJpaAndHibernatePositionalParameter(position);
-			}
+			registerParameter( new ParameterRegistrationImpl( this, query, i+1, javaType ) );
 		}
 	}
 
@@ -135,15 +161,18 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 		return (SessionFactoryImplementor) getEntityManager().getFactory().getSessionFactory();
 	}
 
-	private boolean mightNeedRedefinition(Class javaType) {
-		// for now, only really no for dates/times/timestamps
-		return java.util.Date.class.isAssignableFrom( javaType );
+	private boolean mightNeedRedefinition(Class javaType, Type expectedType) {
+		// only redefine dates/times/timestamps that are not wrapped in a CompositeCustomType
+		if ( expectedType == null )
+			return java.util.Date.class.isAssignableFrom( javaType );
+		else
+			return java.util.Date.class.isAssignableFrom( javaType )
+					&& !CompositeCustomType.class.isAssignableFrom( expectedType.getClass() );
 	}
 
-
-
 	private static class ParameterRegistrationImpl<T> implements ParameterRegistration<T> {
-		private final org.hibernate.Query query;
+		private final Query jpaQuery;
+		private final org.hibernate.Query nativeQuery;
 
 		private final String name;
 		private final Integer position;
@@ -151,18 +180,38 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 
 		private ParameterBind<T> bind;
 
-		private ParameterRegistrationImpl(org.hibernate.Query query, String name, Class<T> javaType) {
-			this.query = query;
+		protected ParameterRegistrationImpl(
+				Query jpaQuery,
+				org.hibernate.Query nativeQuery,
+				String name,
+				Class<T> javaType) {
+			this.jpaQuery = jpaQuery;
+			this.nativeQuery = nativeQuery;
 			this.name = name;
 			this.javaType = javaType;
 			this.position = null;
 		}
 
-		private ParameterRegistrationImpl(org.hibernate.Query query, Integer position, Class<T> javaType) {
-			this.query = query;
+		protected ParameterRegistrationImpl(
+				Query jpaQuery,
+				org.hibernate.Query nativeQuery,
+				Integer position,
+				Class<T> javaType) {
+			this.jpaQuery = jpaQuery;
+			this.nativeQuery = nativeQuery;
 			this.position = position;
 			this.javaType = javaType;
 			this.name = null;
+		}
+
+		@Override
+		public boolean isJpaPositionalParameter() {
+			return false;
+		}
+
+		@Override
+		public Query getQuery() {
+			return jpaQuery;
 		}
 
 		@Override
@@ -198,14 +247,14 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 
 			if ( name != null ) {
 				if ( value instanceof Collection ) {
-					query.setParameterList( name, (Collection) value );
+					nativeQuery.setParameterList( name, (Collection) value );
 				}
 				else {
-					query.setParameter( name, value );
+					nativeQuery.setParameter( name, value );
 				}
 			}
 			else {
-				query.setParameter( position-1, value );
+				nativeQuery.setParameter( position - 1, value );
 			}
 
 			bind = new ParameterBindImpl<T>( value, null );
@@ -218,48 +267,48 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 			if ( Date.class.isInstance( value ) ) {
 				if ( name != null ) {
 					if ( specifiedTemporalType == DATE ) {
-						query.setDate( name, (Date) value );
+						nativeQuery.setDate( name, (Date) value );
 					}
 					else if ( specifiedTemporalType == TIME ) {
-						query.setTime( name, (Date) value );
+						nativeQuery.setTime( name, (Date) value );
 					}
 					else if ( specifiedTemporalType == TIMESTAMP ) {
-						query.setTimestamp( name, (Date) value );
+						nativeQuery.setTimestamp( name, (Date) value );
 					}
 				}
 				else {
 					if ( specifiedTemporalType == DATE ) {
-						query.setDate( position-1, (Date) value );
+						nativeQuery.setDate( position - 1, (Date) value );
 					}
 					else if ( specifiedTemporalType == TIME ) {
-						query.setTime( position-1, (Date) value );
+						nativeQuery.setTime( position - 1, (Date) value );
 					}
 					else if ( specifiedTemporalType == TIMESTAMP ) {
-						query.setTimestamp( position-1, (Date) value );
+						nativeQuery.setTimestamp( position - 1, (Date) value );
 					}
 				}
 			}
 			else if ( Calendar.class.isInstance( value ) ) {
 				if ( name != null ) {
 					if ( specifiedTemporalType == DATE ) {
-						query.setCalendarDate( name, (Calendar) value );
+						nativeQuery.setCalendarDate( name, (Calendar) value );
 					}
 					else if ( specifiedTemporalType == TIME ) {
 						throw new IllegalArgumentException( "not yet implemented" );
 					}
 					else if ( specifiedTemporalType == TIMESTAMP ) {
-						query.setCalendar( name, (Calendar) value );
+						nativeQuery.setCalendar( name, (Calendar) value );
 					}
 				}
 				else {
 					if ( specifiedTemporalType == DATE ) {
-						query.setCalendarDate( position-1, (Calendar) value );
+						nativeQuery.setCalendarDate( position - 1, (Calendar) value );
 					}
 					else if ( specifiedTemporalType == TIME ) {
 						throw new IllegalArgumentException( "not yet implemented" );
 					}
 					else if ( specifiedTemporalType == TIMESTAMP ) {
-						query.setCalendar( position-1, (Calendar) value );
+						nativeQuery.setCalendar( position - 1, (Calendar) value );
 					}
 				}
 			}
@@ -275,6 +324,39 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 		@Override
 		public ParameterBind<T> getBind() {
 			return bind;
+		}
+	}
+
+	/**
+	 * Specialized handling for JPA "positional parameters".
+	 *
+	 * @param <T> The parameter type type.
+	 */
+	public static class JpaPositionalParameterRegistrationImpl<T> extends ParameterRegistrationImpl<T> {
+		final Integer position;
+
+		protected JpaPositionalParameterRegistrationImpl(
+				Query jpaQuery,
+				org.hibernate.Query nativeQuery,
+				Integer position,
+				Class<T> javaType) {
+			super( jpaQuery, nativeQuery, position.toString(), javaType );
+			this.position = position;
+		}
+
+		@Override
+		public String getName() {
+			return null;
+		}
+
+		@Override
+		public Integer getPosition() {
+			return position;
+		}
+
+		@Override
+		public boolean isJpaPositionalParameter() {
+			return true;
 		}
 	}
 
@@ -359,6 +441,8 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 	@SuppressWarnings({ "unchecked", "RedundantCast" })
 	public List<X> getResultList() {
 		getEntityManager().checkOpen( true );
+		checkTransaction();
+		beforeQuery();
 		try {
 			return query.list();
 		}
@@ -373,10 +457,38 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 		}
 	}
 
+	/**
+	 * For JPA native SQL queries, we may need to perform a flush before executing the query.
+	 */
+	private void beforeQuery() {
+		final org.hibernate.Query query = getHibernateQuery();
+		if ( ! SQLQuery.class.isInstance( query ) ) {
+			// this need only exists for native SQL queries, not JPQL or Criteria queries (both of which do
+			// partial auto flushing already).
+			return;
+		}
+
+		final SQLQuery sqlQuery = (SQLQuery) query;
+		if ( sqlQuery.getSynchronizedQuerySpaces() != null && ! sqlQuery.getSynchronizedQuerySpaces().isEmpty() ) {
+			// The application defined query spaces on the Hibernate native SQLQuery which means the query will already
+			// perform a partial flush according to the defined query spaces, no need to do a full flush.
+			return;
+		}
+
+		// otherwise we need to flush.  the query itself is not required to execute in a transaction; if there is
+		// no transaction, the flush would throw a TransactionRequiredException which would potentially break existing
+		// apps, so we only do the flush if a transaction is in progress.
+		if ( getEntityManager().isTransactionInProgress() ) {
+			getEntityManager().flush();
+		}
+	}
+
 	@Override
 	@SuppressWarnings({ "unchecked", "RedundantCast" })
 	public X getSingleResult() {
 		getEntityManager().checkOpen( true );
+		checkTransaction();
+		beforeQuery();
 		try {
 			final List<X> result = query.list();
 
@@ -412,29 +524,26 @@ public class QueryImpl<X> extends AbstractQueryImpl<X> implements TypedQuery<X>,
 	}
 
 	@Override
-	protected boolean isJpaPositionalParameter(int position) {
-		return jpaPositionalIndices != null && jpaPositionalIndices.contains( position );
-	}
-
-	@Override
 	@SuppressWarnings({ "unchecked" })
 	public <T> T unwrap(Class<T> tClass) {
 		if ( org.hibernate.Query.class.isAssignableFrom( tClass ) ) {
 			return (T) query;
 		}
-		else {
-			try {
-				return (T) this;
-			}
-			catch ( ClassCastException cce ) {
-				PersistenceException pe = new PersistenceException(
-						"Unsupported unwrap target type [" + tClass.getName() + "]"
-				);
-				//It's probably against the spec to not mark the tx for rollback but it will be easier for people
-				//getEntityManager().handlePersistenceException( pe );
-				throw pe;
-			}
+		if ( QueryImpl.class.isAssignableFrom( tClass ) ) {
+			return (T) this;
 		}
+		if ( HibernateQuery.class.isAssignableFrom( tClass ) ) {
+			return (T) this;
+		}
+
+		throw new PersistenceException(
+				String.format(
+						"Unsure how to unwrap %s impl [%s] as requested type [%s]",
+						Query.class.getSimpleName(),
+						this.getClass().getName(),
+						tClass.getName()
+				)
+		);
 	}
 
 	@Override

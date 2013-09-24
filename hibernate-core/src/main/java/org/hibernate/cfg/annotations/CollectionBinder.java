@@ -84,6 +84,7 @@ import org.hibernate.cfg.AccessType;
 import org.hibernate.cfg.AnnotatedClassType;
 import org.hibernate.cfg.AnnotationBinder;
 import org.hibernate.cfg.BinderHelper;
+import org.hibernate.cfg.CollectionPropertyHolder;
 import org.hibernate.cfg.CollectionSecondPass;
 import org.hibernate.cfg.Ejb3Column;
 import org.hibernate.cfg.Ejb3JoinColumn;
@@ -398,6 +399,7 @@ public abstract class CollectionBinder {
 		LOG.debugf( "Collection role: %s", role );
 		collection.setRole( role );
 		collection.setNodeName( propertyName );
+		collection.setMappedByProperty( mappedBy );
 
 		if ( property.isAnnotationPresent( MapKeyColumn.class )
 			&& mapKeyPropertyName != null ) {
@@ -1268,10 +1270,19 @@ public abstract class CollectionBinder {
 			XClass elementClass;
 			AnnotatedClassType classType;
 
-			PropertyHolder holder = null;
+			CollectionPropertyHolder holder = null;
 			if ( BinderHelper.PRIMITIVE_NAMES.contains( collType.getName() ) ) {
 				classType = AnnotatedClassType.NONE;
 				elementClass = null;
+
+				holder = PropertyHolderBuilder.buildPropertyHolder(
+						collValue,
+						collValue.getRole(),
+						null,
+						property,
+						parentPropertyHolder,
+						mappings
+				);
 			}
 			else {
 				elementClass = collType;
@@ -1281,11 +1292,20 @@ public abstract class CollectionBinder {
 						collValue,
 						collValue.getRole(),
 						elementClass,
-						property, parentPropertyHolder, mappings
+						property,
+						parentPropertyHolder,
+						mappings
 				);
+
+				// 'parentPropertyHolder' is the PropertyHolder for the owner of the collection
+				// 'holder' is the CollectionPropertyHolder.
+				// 'property' is the collection XProperty
+				parentPropertyHolder.startingProperty( property );
+
 				//force in case of attribute override
 				boolean attributeOverride = property.isAnnotationPresent( AttributeOverride.class )
 						|| property.isAnnotationPresent( AttributeOverrides.class );
+				// todo : force in the case of Convert annotation(s) with embedded paths (beyond key/value prefixes)?
 				if ( isEmbedded || attributeOverride ) {
 					classType = AnnotatedClassType.EMBEDDABLE;
 				}
@@ -1328,10 +1348,18 @@ public abstract class CollectionBinder {
 					}
 				}
 				//TODO be smart with isNullable
+				boolean isNullable = true;
 				Component component = AnnotationBinder.fillComponent(
-						holder, inferredData, isPropertyAnnotated ? AccessType.PROPERTY : AccessType.FIELD, true,
-						entityBinder, false, false,
-						true, mappings, inheritanceStatePerClass
+						holder,
+						inferredData,
+						isPropertyAnnotated ? AccessType.PROPERTY : AccessType.FIELD,
+						isNullable,
+						entityBinder,
+						false,
+						false,
+						true,
+						mappings,
+						inheritanceStatePerClass
 				);
 
 				collValue.setElement( component );
@@ -1345,6 +1373,8 @@ public abstract class CollectionBinder {
 				}
 			}
 			else {
+				holder.prepare( property );
+
 				SimpleValueBinder elementBinder = new SimpleValueBinder();
 				elementBinder.setMappings( mappings );
 				elementBinder.setReturnedClassName( collType.getName() );
@@ -1367,7 +1397,12 @@ public abstract class CollectionBinder {
 					column.setTable( collValue.getCollectionTable() );
 				}
 				elementBinder.setColumns( elementColumns );
-				elementBinder.setType( property, elementClass, collValue.getOwnerEntityName() );
+				elementBinder.setType(
+						property,
+						elementClass,
+						collValue.getOwnerEntityName(),
+						holder.resolveElementAttributeConverterDefinition( elementClass )
+				);
 				elementBinder.setPersistentClassName( propertyHolder.getEntityName() );
 				elementBinder.setAccessType( accessType );
 				collValue.setElement( elementBinder.make() );

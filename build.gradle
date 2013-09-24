@@ -2,6 +2,10 @@ apply plugin: 'eclipse'
 apply plugin: 'idea'
 apply from: "./libraries.gradle"
 
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.7'
+}
+
 allprojects {
     repositories {
         mavenCentral()
@@ -23,16 +27,12 @@ buildscript {
     dependencies {
         classpath 'org.hibernate.build.gradle:gradle-maven-publish-auth:2.0.1'
         classpath 'org.hibernate.build.gradle:hibernate-matrix-testing:1.0.0-SNAPSHOT'
+        classpath 'org.hibernate.build.gradle:version-injection-plugin:1.0.0'
     }
 }
 
 ext.hibernateTargetVersion = '4.3.0-SNAPSHOT'
 ext.javaLanguageLevel = "1.6"
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '1.6'
-}
-
 
 idea {
     project {
@@ -73,6 +73,9 @@ subprojects { subProject ->
 
     group = 'org.hibernate'
     version = rootProject.hibernateTargetVersion
+    // The OSGi manifest exported package versions need to be only the numerical release -- no "SNAPSHOT" or "Final"
+    exportPackageVersion = version.replaceAll("-SNAPSHOT", "");
+    exportPackageVersion = exportPackageVersion.replaceAll(".Final", "");
 
     // minimize changes, at least for now (gradle uses 'build' by default)..
     buildDir = "target"
@@ -80,6 +83,7 @@ subprojects { subProject ->
         apply plugin: 'java'
         apply plugin: 'maven-publish'
         apply plugin: 'maven-publish-auth'
+        apply plugin: 'maven' // temporary, still needed for install task until bug with publishToMavenLocal task is fixed
         apply plugin: 'osgi'
 
         apply from: "../utilities.gradle"
@@ -113,6 +117,7 @@ subprojects { subProject ->
         // appropriately inject the common dependencies into each sub-project
         dependencies {
             compile( libraries.logging )
+            compile( libraries.logging_annotations )
 
             testCompile( libraries.junit )
             testCompile( libraries.byteman )
@@ -232,7 +237,7 @@ subprojects { subProject ->
                             privatePackages.add( packageName );
                         }
                         else {
-                            exportPackages.add( packageName );
+                            exportPackages.add( packageName + ";version=\"" + exportPackageVersion + "\"" );
                         }
                     }
                 }
@@ -319,22 +324,34 @@ subprojects { subProject ->
         // eclipseClasspath will not add sources to classpath unless the dirs actually exist.
         eclipseClasspath.dependsOn("generateSources")
 
+
+        // Animal Sniffer ~~~~~~~~~~~~~~~~~~
+        //      add animal sniffer Java API checking to the main compile tasks
+
+        // copy the resolved Animal Sniffer signature dependency artifact to a known location and name
         task copyJavaApiSignature(type: Copy) {
             from configurations.javaApiSignature
             into "$buildDir/javaApiSignature/"
             rename '.*signature', 'javaApi.signature'
         }
 
-        // checks that only types of the target Java version are used
-        task checkJavaApiSignature << {
-            ant.taskdef(name: 'animalSniffer', classname: 'org.codehaus.mojo.animal_sniffer.ant.CheckSignatureTask', classpath: configurations.animalSniffer.asPath)
-            ant.animalSniffer(signature: "$buildDir/javaApiSignature/javaApi.signature", classpath: configurations.compile.asPath + System.properties.'path.separator' + configurations.provided.asPath) {
-                path(path: "$buildDir/classes/main")
+        // prepare the Animal Sniffer signature copy every time (before) we compile
+        compileJava.dependsOn copyJavaApiSignature
+
+        // and then after compilation, run the Animal Sniffer tool
+        compileJava.doLast {
+            ant.taskdef(
+                    name: 'animalSniffer',
+                    classname: 'org.codehaus.mojo.animal_sniffer.ant.CheckSignatureTask',
+                    classpath: configurations.animalSniffer.asPath
+            )
+
+            ant.animalSniffer(
+                    signature: "$buildDir/javaApiSignature/javaApi.signature",
+                    classpath: sourceSets.main.compileClasspath.asPath) {
+                path( path: sourceSets.main.output.classesDir )
             }
         }
-        checkJavaApiSignature.dependsOn compileJava
-        checkJavaApiSignature.dependsOn copyJavaApiSignature
-        check.dependsOn checkJavaApiSignature
 
         // specialized API/SPI checkstyle tasks ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         task checkstylePublicSources(type: Checkstyle) {
@@ -392,8 +409,6 @@ subprojects { subProject ->
         findbugsMain.exclude '**/*_$logger*'
         findbugsMain.exclude '**/org/hibernate/internal/jaxb/**'
 
-
-        buildDashboard.dependsOn check
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
