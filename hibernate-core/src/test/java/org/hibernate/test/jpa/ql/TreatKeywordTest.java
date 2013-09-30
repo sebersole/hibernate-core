@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2013, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -20,22 +20,24 @@
  * Free Software Foundation, Inc.
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
- *
  */
-package org.hibernate.engine.query.spi.sql;
+package org.hibernate.test.jpa.ql;
 
+import org.hibernate.Session;
+
+import org.junit.Test;
+
+import org.hibernate.test.jpa.AbstractJPATest;
 
 /**
- * Describes a return in a native SQL query.
- * <p/>
- * IMPL NOTE : implementations should be immutable as they are used as part of cache keys for result caching.
- *
  * @author Steve Ebersole
  */
-public interface NativeSQLQueryReturn {
-	public static interface TraceLogger {
-		public void writeLine(String traceLine);
+public class TreatKeywordTest extends AbstractJPATest {
+	@Test
+	public void testUsageInSelect() {
+		Session s = openSession();
+		s.createQuery( "from MyEntity e join treat(e.other as MySubclassEntity) o" ).list();
+		s.createQuery( "from MyEntity e join TREAT(e.other as MySubclassEntity) o" ).list();
+		s.close();
 	}
-
-	public void traceLog(TraceLogger logger);
 }
