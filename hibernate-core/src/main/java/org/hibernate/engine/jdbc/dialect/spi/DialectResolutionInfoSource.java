@@ -21,22 +21,18 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.procedure.internal;
+package org.hibernate.engine.jdbc.dialect.spi;
 
 /**
- * The style/strategy of parameter registration used in a particular procedure call definition.
+ * Contract for the source of DialectResolutionInfo.
+ *
+ * @author Steve Ebersole
  */
-public enum ParameterStrategy {
+public interface DialectResolutionInfoSource {
 	/**
-	 * The parameters are named
+	 * Get the DialectResolutionInfo
+	 *
+	 * @return The DialectResolutionInfo
 	 */
-	NAMED,
-	/**
-	 * The parameters are positional
-	 */
-	POSITIONAL,
-	/**
-	 * We do not (yet) know
-	 */
-	UNKNOWN
+	public DialectResolutionInfo getDialectResolutionInfo();
 }

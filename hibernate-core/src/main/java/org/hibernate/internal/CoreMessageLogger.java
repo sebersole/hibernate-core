@@ -384,8 +384,8 @@ public interface CoreMessageLogger extends BasicLogger {
 	void handlingTransientEntity();
 
 	@LogMessage(level = INFO)
-	@Message(value = "Hibernate connection pool size: %s", id = 115)
-	void hibernateConnectionPoolSize(int poolSize);
+	@Message(value = "Hibernate connection pool size: %s (min=%s)", id = 115)
+	void hibernateConnectionPoolSize(int poolSize, int minSize);
 
 	@LogMessage(level = WARN)
 	@Message(value = "Config specified explicit optimizer of [%s], but [%s=%s; honoring optimizer setting", id = 116)
@@ -804,9 +804,9 @@ public interface CoreMessageLogger extends BasicLogger {
 	void splitQueries(String sourceQuery,
 					  int length);
 
-	@LogMessage(level = ERROR)
-	@Message(value = "SQLException escaped proxy", id = 246)
-	void sqlExceptionEscapedProxy(@Cause SQLException e);
+//	@LogMessage(level = ERROR)
+//	@Message(value = "SQLException escaped proxy", id = 246)
+//	void sqlExceptionEscapedProxy(@Cause SQLException e);
 
 	@LogMessage(level = WARN)
 	@Message(value = "SQL Error: %s, SQLState: %s", id = 247)

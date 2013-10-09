@@ -21,32 +21,20 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.engine.jdbc.dialect.spi;
+package org.hibernate.event.spi;
 
-import java.sql.DatabaseMetaData;
-
-import org.hibernate.dialect.Dialect;
-import org.hibernate.exception.JDBCConnectionException;
-import org.hibernate.service.Service;
+import java.io.Serializable;
 
 /**
- * Contract for determining the {@link Dialect} to use based on a JDBC {@link java.sql.Connection}.
+ * Listener for notification of {@link org.hibernate.Session#clear()}
  *
- * @author Tomoto Shimizu Washio
  * @author Steve Ebersole
  */
-public interface DatabaseMetaDataDialectResolver extends Service {
+public interface ClearEventListener extends Serializable {
 	/**
-	 * Determine the {@link org.hibernate.dialect.Dialect} to use based on the given JDBC {@link java.sql.DatabaseMetaData}.  Implementations are
-	 * expected to return the {@link org.hibernate.dialect.Dialect} instance to use, or null if the {@link java.sql.DatabaseMetaData} does not match
-	 * the criteria handled by this impl.
+	 * Callback for {@link org.hibernate.Session#clear()} notification
 	 *
-	 * @param metaData The JDBC metadata.
-	 *
-	 * @return The dialect to use, or null.
-	 *
-	 * @throws org.hibernate.exception.JDBCConnectionException Indicates a 'non transient connection problem', which indicates that
-	 * we should stop resolution attempts.
+	 * @param event The event representing the clear
 	 */
-	public Dialect resolveDialect(DatabaseMetaData metaData) throws JDBCConnectionException;
+	public void onClear(ClearEvent event);
 }
