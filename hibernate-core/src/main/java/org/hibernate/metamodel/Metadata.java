@@ -30,6 +30,8 @@ import javax.persistence.SharedCacheMode;
 import org.hibernate.SessionFactory;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinition;
@@ -50,6 +52,8 @@ public interface Metadata {
 	public static interface Options {
 		public MetadataSourceProcessingOrder getMetadataSourceProcessingOrder();
 		public NamingStrategy getNamingStrategy();
+		public ImplicitNamingStrategy getImplicitNamingStrategy();
+		public PhysicalNamingStrategy getPhysicalNamingStrategy();
 		public SharedCacheMode getSharedCacheMode();
 		public AccessType getDefaultAccessType();
 		public boolean useNewIdentifierGenerators();

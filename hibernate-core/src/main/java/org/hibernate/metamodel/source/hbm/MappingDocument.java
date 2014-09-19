@@ -26,6 +26,8 @@ package org.hibernate.metamodel.source.hbm;
 import java.util.List;
 
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.internal.jaxb.JaxbRoot;
 import org.hibernate.internal.jaxb.Origin;
 import org.hibernate.internal.jaxb.mapping.hbm.EntityElement;
@@ -108,6 +110,16 @@ public class MappingDocument {
 		@Override
 		public NamingStrategy getNamingStrategy() {
 			return metadata.getNamingStrategy();
+		}
+
+		@Override
+		public ImplicitNamingStrategy getImplicitNamingStrategy() {
+			return metadata.getImplicitNamingStrategy();
+		}
+
+		@Override
+		public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+			return metadata.getPhysicalNamingStrategy();
 		}
 
 		@Override

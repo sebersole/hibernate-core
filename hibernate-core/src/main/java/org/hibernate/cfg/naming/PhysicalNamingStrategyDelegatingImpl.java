@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2014, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -21,38 +21,35 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.metamodel.source;
+package org.hibernate.cfg.naming;
+
+import java.io.Serializable;
 
 import org.hibernate.cfg.NamingStrategy;
-import org.hibernate.cfg.naming.ImplicitNamingStrategy;
-import org.hibernate.cfg.naming.PhysicalNamingStrategy;
-import org.hibernate.internal.util.ValueHolder;
-import org.hibernate.metamodel.domain.Type;
-import org.hibernate.service.ServiceRegistry;
 
 /**
+ * PhysicalNamingStrategy implementation that delegates to a user-specified NamingStrategy.
+ *
+ * @deprecated Needed as a transitory implementation until the deprecated NamingStrategy contract
+ * can be removed.
+ *
  * @author Steve Ebersole
  */
-public interface BindingContext {
-	public ServiceRegistry getServiceRegistry();
+@Deprecated
+public class PhysicalNamingStrategyDelegatingImpl implements PhysicalNamingStrategy, Serializable {
+	private final NamingStrategy namingStrategy;
 
-	public NamingStrategy getNamingStrategy();
+	public PhysicalNamingStrategyDelegatingImpl(NamingStrategy namingStrategy) {
+		this.namingStrategy = namingStrategy;
+	}
 
-	public ImplicitNamingStrategy getImplicitNamingStrategy();
+	@Override
+	public String toPhysicalTableName(String name) {
+		return namingStrategy.tableName( name );
+	}
 
-	public PhysicalNamingStrategy getPhysicalNamingStrategy();
-
-	public MappingDefaults getMappingDefaults();
-
-	public MetadataImplementor getMetadataImplementor();
-
-	public <T> Class<T> locateClassByName(String name);
-
-	public Type makeJavaType(String className);
-
-	public boolean isGloballyQuotedIdentifiers();
-
-	public ValueHolder<Class<?>> makeClassReference(String className);
-
-	public String qualifyClassName(String name);
+	@Override
+	public String toPhysicalColumnName(String name) {
+		return namingStrategy.columnName( name );
+	}
 }

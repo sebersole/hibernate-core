@@ -72,7 +72,7 @@ public class MetadataSources {
 	private final MetadataBuilderImpl metadataBuilder;
 
 	public MetadataSources(ServiceRegistry serviceRegistry) {
-		this( serviceRegistry, EJB3DTDEntityResolver.INSTANCE, EJB3NamingStrategy.INSTANCE );
+		this( serviceRegistry, EJB3DTDEntityResolver.INSTANCE, null );
 	}
 
 	public MetadataSources(ServiceRegistry serviceRegistry, EntityResolver entityResolver, NamingStrategy namingStrategy) {

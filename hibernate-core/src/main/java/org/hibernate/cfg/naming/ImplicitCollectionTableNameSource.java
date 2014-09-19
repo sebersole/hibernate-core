@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2014, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -21,38 +21,36 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.metamodel.source;
+package org.hibernate.cfg.naming;
 
-import org.hibernate.cfg.NamingStrategy;
-import org.hibernate.cfg.naming.ImplicitNamingStrategy;
-import org.hibernate.cfg.naming.PhysicalNamingStrategy;
-import org.hibernate.internal.util.ValueHolder;
-import org.hibernate.metamodel.domain.Type;
-import org.hibernate.service.ServiceRegistry;
+import org.hibernate.metamodel.relational.ObjectName;
 
 /**
+ * Access to the source information used to determine the logical name for a collection table.
+ *
  * @author Steve Ebersole
+ *
+ * @see javax.persistence.CollectionTable
  */
-public interface BindingContext {
-	public ServiceRegistry getServiceRegistry();
+public interface ImplicitCollectionTableNameSource {
+	/**
+	 * Access to the physical name of the owning entity's primary table.
+	 *
+	 * @return Owning entity's primary table  name.
+	 */
+	public String getOwningPhysicalTableName();
 
-	public NamingStrategy getNamingStrategy();
+	/**
+	 * Access to entity naming information for the owning side.
+	 *
+	 * @return Owning entity naming information
+	 */
+	public EntityNamingSource getOwningEntityNamingSource();
 
-	public ImplicitNamingStrategy getImplicitNamingStrategy();
-
-	public PhysicalNamingStrategy getPhysicalNamingStrategy();
-
-	public MappingDefaults getMappingDefaults();
-
-	public MetadataImplementor getMetadataImplementor();
-
-	public <T> Class<T> locateClassByName(String name);
-
-	public Type makeJavaType(String className);
-
-	public boolean isGloballyQuotedIdentifiers();
-
-	public ValueHolder<Class<?>> makeClassReference(String className);
-
-	public String qualifyClassName(String name);
+	/**
+	 * Access to the name of the attribute, from the owning side, that defines the association.
+	 *
+	 * @return The owning side's attribute name.
+	 */
+	public String getAssociationOwningAttributePath();
 }

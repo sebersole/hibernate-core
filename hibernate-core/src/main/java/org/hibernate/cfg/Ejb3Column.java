@@ -25,8 +25,6 @@ package org.hibernate.cfg;
 
 import java.util.Map;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.annotations.ColumnTransformer;
@@ -34,6 +32,7 @@ import org.hibernate.annotations.ColumnTransformers;
 import org.hibernate.annotations.Index;
 import org.hibernate.annotations.common.reflection.XProperty;
 import org.hibernate.cfg.annotations.Nullability;
+import org.hibernate.cfg.naming.ImplicitAttributeColumnNameSource;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Column;
@@ -41,6 +40,8 @@ import org.hibernate.mapping.Formula;
 import org.hibernate.mapping.Join;
 import org.hibernate.mapping.SimpleValue;
 import org.hibernate.mapping.Table;
+
+import org.jboss.logging.Logger;
 
 /**
  * Wrap state of an EJB3 @Column annotation
@@ -243,21 +244,30 @@ public class Ejb3Column {
 		return mappingColumn == null || StringHelper.isEmpty( mappingColumn.getName() );
 	}
 
-	public void redefineColumnName(String columnName, String propertyName, boolean applyNamingStrategy) {
+	public void redefineColumnName(String columnName, final String propertyName, boolean applyNamingStrategy) {
 		if ( applyNamingStrategy ) {
 			if ( StringHelper.isEmpty( columnName ) ) {
 				if ( propertyName != null ) {
+					final String logicalColumnName = mappings.getImplicitNamingStrategy().determineAttributeColumnName(
+							new ImplicitAttributeColumnNameSource() {
+								@Override
+								public String getAttributePath() {
+									return propertyName;
+								}
+							}
+					);
+					final String physicalColumnName =
+							mappings.getPhysicalNamingStrategy().toPhysicalColumnName( logicalColumnName );
 					mappingColumn.setName(
-							mappings.getObjectNameNormalizer().normalizeIdentifierQuoting(
-									mappings.getNamingStrategy().propertyToColumnName( propertyName )
-							)
+							mappings.getObjectNameNormalizer().normalizeIdentifierQuoting( physicalColumnName )
 					);
 				}
 				//Do nothing otherwise
 			}
 			else {
 				columnName = mappings.getObjectNameNormalizer().normalizeIdentifierQuoting( columnName );
-				columnName = mappings.getNamingStrategy().columnName( columnName );
+				columnName =
+						mappings.getPhysicalNamingStrategy().toPhysicalColumnName( columnName );
 				columnName = mappings.getObjectNameNormalizer().normalizeIdentifierQuoting( columnName );
 				mappingColumn.setName( columnName );
 			}
@@ -324,9 +334,21 @@ public class Ejb3Column {
 	}
 
 	protected void addColumnBinding(SimpleValue value) {
-		String logicalColumnName = mappings.getNamingStrategy()
-				.logicalColumnName( this.logicalColumnName, propertyName );
-		mappings.addColumnBinding( logicalColumnName, getMappingColumn(), value.getTable() );
+		final String actualLogicalColumnName;
+		if ( this.logicalColumnName == null ) {
+			actualLogicalColumnName = mappings.getImplicitNamingStrategy().determineAttributeColumnName(
+					new ImplicitAttributeColumnNameSource() {
+						@Override
+						public String getAttributePath() {
+							return propertyName;
+						}
+					}
+			);
+		}
+		else {
+			actualLogicalColumnName = this.logicalColumnName;
+		}
+		mappings.addColumnBinding( actualLogicalColumnName, getMappingColumn(), value.getTable() );
 	}
 
 	/**
@@ -446,9 +468,15 @@ public class Ejb3Column {
 					final String sqlType = col.columnDefinition().equals( "" )
 							? null
 							: nameNormalizer.normalizeIdentifierQuoting( col.columnDefinition() );
-					final String tableName = ! StringHelper.isEmpty(col.table())
-                                             ? nameNormalizer.normalizeIdentifierQuoting( mappings.getNamingStrategy().tableName( col.table() ) )
-                                             : "";
+					final String tableName;
+					if ( StringHelper.isNotEmpty( col.table() ) ) {
+						tableName = nameNormalizer.normalizeIdentifierQuoting(
+								mappings.getPhysicalNamingStrategy().toPhysicalTableName( col.table() )
+						);
+					}
+					else {
+						tableName = "";
+					}
 					final String columnName = nameNormalizer.normalizeIdentifierQuoting( col.name() );
 					Ejb3Column column = new Ejb3Column();
 					column.setImplicit( false );

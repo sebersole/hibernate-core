@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2014, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -21,38 +21,27 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.metamodel.source;
-
-import org.hibernate.cfg.NamingStrategy;
-import org.hibernate.cfg.naming.ImplicitNamingStrategy;
-import org.hibernate.cfg.naming.PhysicalNamingStrategy;
-import org.hibernate.internal.util.ValueHolder;
-import org.hibernate.metamodel.domain.Type;
-import org.hibernate.service.ServiceRegistry;
+package org.hibernate.cfg.naming;
 
 /**
+ * Database objects are generally defined within a schema and/or catalog (depending on the type and
+ * RDBMS).  This is a common contract for sources of these database object names to consistently
+ * give access to the explicitly specified schema/catalog parts.
+ *
  * @author Steve Ebersole
  */
-public interface BindingContext {
-	public ServiceRegistry getServiceRegistry();
+public interface ExplicitDatabaseObjectNameSource {
+	/**
+	 * Access to the explicitly specified schema name.
+	 *
+	 * @return The explicitly specified schema name, or {@code null} if not specified.
+	 */
+	public String getExplicitSchemaName();
 
-	public NamingStrategy getNamingStrategy();
-
-	public ImplicitNamingStrategy getImplicitNamingStrategy();
-
-	public PhysicalNamingStrategy getPhysicalNamingStrategy();
-
-	public MappingDefaults getMappingDefaults();
-
-	public MetadataImplementor getMetadataImplementor();
-
-	public <T> Class<T> locateClassByName(String name);
-
-	public Type makeJavaType(String className);
-
-	public boolean isGloballyQuotedIdentifiers();
-
-	public ValueHolder<Class<?>> makeClassReference(String className);
-
-	public String qualifyClassName(String name);
+	/**
+	 * Access to the explicitly specified catalog name.
+	 *
+	 * @return The explicitly specified catalog name, or {@code null} if not specified.
+	 */
+	public String getExplicitCatalogName();
 }

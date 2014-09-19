@@ -36,6 +36,8 @@ import org.hibernate.MappingException;
 import org.hibernate.annotations.AnyMetaDef;
 import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.annotations.common.reflection.XClass;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinition;
@@ -79,15 +81,49 @@ public interface Mappings {
 	 * Get the current naming strategy.
 	 *
 	 * @return The current naming strategy.
+	 *
+	 * @deprecated Use either {@link #getImplicitNamingStrategy()} or {@link #getPhysicalNamingStrategy()}
 	 */
+	@Deprecated
 	public NamingStrategy getNamingStrategy();
 
 	/**
 	 * Set the current naming strategy.
 	 *
 	 * @param namingStrategy The naming strategy to use.
+	 *
+	 * @deprecated Use either {@link #setImplicitNamingStrategy} or {@link #setPhysicalNamingStrategy}
 	 */
+	@Deprecated
 	public void setNamingStrategy(NamingStrategy namingStrategy);
+
+	/**
+	 * Get the current logical naming strategy
+	 *
+	 * @return Current logical naming strategy
+	 */
+	public ImplicitNamingStrategy getImplicitNamingStrategy();
+
+	/**
+	 * Set the current logical naming strategy.
+	 *
+	 * @param implicitNamingStrategy The logical naming strategy to use.
+	 */
+	public void setImplicitNamingStrategy(ImplicitNamingStrategy implicitNamingStrategy);
+
+	/**
+	 * Get the current physical naming strategy
+	 *
+	 * @return Current physical naming strategy
+	 */
+	public PhysicalNamingStrategy getPhysicalNamingStrategy();
+
+	/**
+	 * Set the current physical naming strategy.
+	 *
+	 * @param physicalNamingStrategy The physical naming strategy to use.
+	 */
+	public void setPhysicalNamingStrategy(PhysicalNamingStrategy physicalNamingStrategy);
 
 	/**
 	 * Returns the currently bound default schema name.

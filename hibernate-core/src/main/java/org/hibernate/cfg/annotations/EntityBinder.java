@@ -23,14 +23,10 @@
  */
 package org.hibernate.cfg.annotations;
 
-import static org.hibernate.cfg.BinderHelper.toAliasEntityMap;
-import static org.hibernate.cfg.BinderHelper.toAliasTableMap;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-
 import javax.persistence.Access;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
@@ -84,6 +80,10 @@ import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.cfg.ObjectNameSource;
 import org.hibernate.cfg.PropertyHolder;
 import org.hibernate.cfg.UniqueConstraintHolder;
+import org.hibernate.cfg.naming.EntityNamingSource;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.ImplicitPrimaryTableNameSource;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.FilterDefinition;
@@ -98,7 +98,11 @@ import org.hibernate.mapping.SimpleValue;
 import org.hibernate.mapping.Table;
 import org.hibernate.mapping.TableOwner;
 import org.hibernate.mapping.Value;
+
 import org.jboss.logging.Logger;
+
+import static org.hibernate.cfg.BinderHelper.toAliasEntityMap;
+import static org.hibernate.cfg.BinderHelper.toAliasTableMap;
 
 
 /**
@@ -519,18 +523,35 @@ public class EntityBinder {
 	}
 
 	private static class EntityTableNamingStrategyHelper implements ObjectNameNormalizer.NamingStrategyHelper {
-		private final String entityName;
+		private final EntityNamingSource entityNamingSource;
 
-		private EntityTableNamingStrategyHelper(String entityName) {
-			this.entityName = entityName;
+		private EntityTableNamingStrategyHelper(EntityNamingSource entityNamingSource) {
+			this.entityNamingSource = entityNamingSource;
 		}
 
 		public String determineImplicitName(NamingStrategy strategy) {
-			return strategy.classToTableName( entityName );
+			return strategy.classToTableName( entityNamingSource.getJpaEntityName() );
+		}
+
+		@Override
+		public String determineImplicitName(ImplicitNamingStrategy implicitNamingStrategy, PhysicalNamingStrategy physicalNamingStrategy) {
+			final ImplicitPrimaryTableNameSource tableNameSource = new ImplicitPrimaryTableNameSource() {
+				@Override
+				public EntityNamingSource getEntityNamingSource() {
+					return entityNamingSource;
+				}
+			};
+			final String implicitTableName = implicitNamingStrategy.determinePrimaryTableName( tableNameSource );
+			return physicalNamingStrategy.toPhysicalTableName( implicitTableName );
 		}
 
 		public String handleExplicitName(NamingStrategy strategy, String name) {
 			return strategy.tableName( name );
+		}
+
+		@Override
+		public String handleExplicitName(PhysicalNamingStrategy physicalNamingStrategy, String name) {
+			return  physicalNamingStrategy.toPhysicalTableName( name );
 		}
 	}
 
@@ -542,7 +563,8 @@ public class EntityBinder {
 			String constraints,
 			Table denormalizedSuperclassTable) {
 		EntityTableObjectNameSource tableNameContext = new EntityTableObjectNameSource( tableName, name );
-		EntityTableNamingStrategyHelper namingStrategyHelper = new EntityTableNamingStrategyHelper( name );
+		EntityTableNamingStrategyHelper namingStrategyHelper =
+				new EntityTableNamingStrategyHelper( createEntityNamingSource() );
 		final Table table = TableBinder.buildAndFillTable(
 				schema,
 				catalog,
@@ -567,6 +589,32 @@ public class EntityBinder {
 		else {
 			throw new AssertionFailure( "binding a table for a subclass" );
 		}
+	}
+
+	private EntityNamingSource createEntityNamingSource() {
+		return new EntityNamingSource() {
+			@Override
+			public String getEntityClassName() {
+				return persistentClass.getClassName();
+			}
+
+			@Override
+			public String getExplicitEntityName() {
+				// Does not apply to annotations
+				return null;
+			}
+
+			@Override
+			public String getEntityName() {
+				return StringHelper.unqualifyEntityName( persistentClass.getEntityName() );
+			}
+
+			@Override
+			public String getJpaEntityName() {
+				return persistentClass.getJpaEntityName();
+			}
+		};
+
 	}
 
 	public void finalSecondaryTableBinding(PropertyHolder propertyHolder) {
@@ -733,8 +781,19 @@ public class EntityBinder {
 			return null;
 		}
 
+		@Override
+		public String determineImplicitName(ImplicitNamingStrategy implicitNamingStrategy, PhysicalNamingStrategy physicalNamingStrategy) {
+			// todo : throw an error?
+			return null;
+		}
+
 		public String handleExplicitName(NamingStrategy strategy, String name) {
 			return strategy.tableName( name );
+		}
+
+		@Override
+		public String handleExplicitName(PhysicalNamingStrategy physicalNamingStrategy, String name) {
+			return physicalNamingStrategy.toPhysicalTableName( name );
 		}
 	}
 

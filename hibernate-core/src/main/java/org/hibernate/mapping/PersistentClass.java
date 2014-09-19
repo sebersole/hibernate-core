@@ -32,6 +32,8 @@ import java.util.StringTokenizer;
 
 import org.hibernate.EntityMode;
 import org.hibernate.MappingException;
+import org.hibernate.cfg.naming.EntityNamingSource;
+import org.hibernate.cfg.naming.ImplicitPrimaryTableNameSource;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.Mapping;
@@ -48,7 +50,8 @@ import org.hibernate.sql.Alias;
  *
  * @author Gavin King
  */
-public abstract class PersistentClass implements Serializable, Filterable, MetaAttributable {
+public abstract class PersistentClass
+		implements Serializable, Filterable, MetaAttributable, ImplicitPrimaryTableNameSource, EntityNamingSource {
 
 	private static final Alias PK_ALIAS = new Alias(15, "PK");
 
@@ -880,4 +883,19 @@ public abstract class PersistentClass implements Serializable, Filterable, MetaA
 
 	// End of @Mappedsuperclass support
 
+
+	@Override
+	public EntityNamingSource getEntityNamingSource() {
+		return this;
+	}
+
+	@Override
+	public String getEntityClassName() {
+		return className;
+	}
+
+	@Override
+	public String getExplicitEntityName() {
+		return entityName;
+	}
 }

@@ -29,6 +29,8 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.Index;
 
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.internal.jaxb.Origin;
 import org.hibernate.internal.jaxb.SourceType;
 import org.hibernate.internal.util.ValueHolder;
@@ -66,6 +68,16 @@ public class EntityBindingContext implements LocalBindingContext, AnnotationBind
 	@Override
 	public NamingStrategy getNamingStrategy() {
 		return contextDelegate.getNamingStrategy();
+	}
+
+	@Override
+	public ImplicitNamingStrategy getImplicitNamingStrategy() {
+		return contextDelegate.getImplicitNamingStrategy();
+	}
+
+	@Override
+	public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+		return contextDelegate.getPhysicalNamingStrategy();
 	}
 
 	@Override

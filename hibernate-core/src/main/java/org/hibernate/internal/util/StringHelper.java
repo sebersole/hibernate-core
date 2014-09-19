@@ -454,6 +454,26 @@ public final class StringHelper {
 		return string == null || string.length() == 0;
 	}
 
+	/**
+	 * Performs standard null/empty normalization.  If the incoming value is {@code null} or empty, {@code null}
+	 * is returned.  Otherwise, the value is returned.
+	 *
+	 * @param value The value to normalize
+	 *
+	 * @return The normalized value
+	 */
+	public static String normalizeEmptyString(String value) {
+		if ( value == null ) {
+			return null;
+		}
+
+		if ( value.length() == 0 ) {
+			return null;
+		}
+
+		return value;
+	}
+
 	public static String qualify(String prefix, String name) {
 		if ( name == null || prefix == null ) {
 			throw new NullPointerException();
@@ -461,7 +481,7 @@ public final class StringHelper {
 		return new StringBuilder( prefix.length() + name.length() + 1 )
 				.append(prefix)
 				.append('.')
-				.append(name)
+				.append( name )
 				.toString();
 	}
 

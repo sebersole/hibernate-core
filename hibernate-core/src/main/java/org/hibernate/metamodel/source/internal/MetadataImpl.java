@@ -38,6 +38,8 @@ import org.hibernate.SessionFactory;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinition;
@@ -466,7 +468,17 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 		return options.getNamingStrategy();
 	}
 
-    @Override
+	@Override
+	public ImplicitNamingStrategy getImplicitNamingStrategy() {
+		return options.getImplicitNamingStrategy();
+	}
+
+	@Override
+	public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+		return options.getPhysicalNamingStrategy();
+	}
+
+	@Override
     public boolean isGloballyQuotedIdentifiers() {
         return globallyQuotedIdentifiers || getOptions().isGloballyQuotedIdentifiers();
     }

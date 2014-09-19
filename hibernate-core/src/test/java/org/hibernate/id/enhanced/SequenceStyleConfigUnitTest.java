@@ -25,16 +25,18 @@ package org.hibernate.id.enhanced;
 
 import java.util.Properties;
 
-import org.junit.Test;
-
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.cfg.NamingStrategy;
 import org.hibernate.cfg.ObjectNameNormalizer;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.id.PersistentIdentifierGenerator;
-import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.hibernate.type.StandardBasicTypes;
+
+import org.hibernate.testing.junit4.BaseUnitTestCase;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -77,6 +79,16 @@ public class SequenceStyleConfigUnitTest extends BaseUnitTestCase {
 					}
 
 					protected NamingStrategy getNamingStrategy() {
+						return null;
+					}
+
+					@Override
+					protected ImplicitNamingStrategy getLogicalNamingStrategy() {
+						return null;
+					}
+
+					@Override
+					protected PhysicalNamingStrategy getPhysicalNamingStrategy() {
 						return null;
 					}
 				}

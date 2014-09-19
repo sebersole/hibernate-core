@@ -23,8 +23,6 @@
  */
 package org.hibernate.id;
 
-import static org.junit.Assert.assertEquals;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -37,6 +35,8 @@ import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.cfg.NamingStrategy;
 import org.hibernate.cfg.ObjectNameNormalizer;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
@@ -45,12 +45,15 @@ import org.hibernate.internal.SessionImpl;
 import org.hibernate.jdbc.Work;
 import org.hibernate.mapping.SimpleAuxiliaryDatabaseObject;
 import org.hibernate.service.ServiceRegistry;
+import org.hibernate.type.StandardBasicTypes;
+
 import org.hibernate.testing.ServiceRegistryBuilder;
 import org.hibernate.testing.junit4.BaseUnitTestCase;
-import org.hibernate.type.StandardBasicTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * I went back to 3.3 source and grabbed the code/logic as it existed back then and crafted this
@@ -84,6 +87,16 @@ public class SequenceHiLoGeneratorNoIncrementTest extends BaseUnitTestCase {
 					@Override
 					protected NamingStrategy getNamingStrategy() {
 						return cfg.getNamingStrategy();
+					}
+
+					@Override
+					protected ImplicitNamingStrategy getLogicalNamingStrategy() {
+						return cfg.getImplicitNamingStrategy();
+					}
+
+					@Override
+					protected PhysicalNamingStrategy getPhysicalNamingStrategy() {
+						return cfg.getPhysicalNamingStrategy();
 					}
 				}
 		);

@@ -35,9 +35,14 @@ package org.hibernate.cfg;
  *
  * @see DefaultNamingStrategy
  * @see ImprovedNamingStrategy
+ *
  * @author Gavin King
  * @author Emmanuel Bernard
+ *
+ * @deprecated Replaced by {@link org.hibernate.cfg.naming.ImplicitNamingStrategy} and
+ * {@link org.hibernate.cfg.naming.PhysicalNamingStrategy}.
  */
+@Deprecated
 public interface NamingStrategy {
 	/**
 	 * Return a table name for an entity class

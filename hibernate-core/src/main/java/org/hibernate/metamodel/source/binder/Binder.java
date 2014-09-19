@@ -34,6 +34,7 @@ import java.util.Map;
 import org.hibernate.AssertionFailure;
 import org.hibernate.EntityMode;
 import org.hibernate.cfg.NotYetImplementedException;
+import org.hibernate.cfg.naming.ImplicitAttributeColumnNameSource;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.beans.BeanInfoHelper;
@@ -1008,7 +1009,7 @@ public class Binder {
 
 	private void bindRelationalValues(
 			RelationalValueSourceContainer relationalValueSourceContainer,
-			SingularAttributeBinding attributeBinding) {
+			final SingularAttributeBinding attributeBinding) {
 
 		List<SimpleValueBinding> valueBindings = new ArrayList<SimpleValueBinding>();
 
@@ -1039,14 +1040,18 @@ public class Binder {
 			}
 		}
 		else {
-			String name = metadata.getOptions()
-					.getNamingStrategy()
-					.propertyToColumnName( attributeBinding.getAttribute().getName() );
-			name = quoteIdentifier( name );
+			String logicalColumnName = metadata.getOptions().getImplicitNamingStrategy().determineAttributeColumnName(
+					new ImplicitAttributeColumnNameSource() {
+						@Override
+						public String getAttributePath() {
+							return attributeBinding.getAttribute().getName();
+						}
+					}
+			);
 			Column column = attributeBinding.getContainer()
 									.seekEntityBinding()
 									.getPrimaryTable()
-									.locateOrCreateColumn( name );
+									.locateOrCreateColumn( quoteIdentifier( logicalColumnName ) );
 			column.setNullable( relationalValueSourceContainer.areValuesNullableByDefault() );
 			valueBindings.add(
 					new SimpleValueBinding(

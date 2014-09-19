@@ -50,15 +50,10 @@ import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
-
 import javax.persistence.Embeddable;
 import javax.persistence.Entity;
 import javax.persistence.MapsId;
 
-import org.dom4j.Attribute;
-import org.dom4j.Document;
-import org.dom4j.DocumentException;
-import org.dom4j.Element;
 import org.hibernate.AnnotationException;
 import org.hibernate.DuplicateMappingException;
 import org.hibernate.EmptyInterceptor;
@@ -76,6 +71,12 @@ import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.annotations.common.reflection.XClass;
 import org.hibernate.annotations.common.reflection.java.JavaReflectionManager;
 import org.hibernate.cfg.annotations.reflection.JPAMetadataProvider;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategyDelegatingImpl;
+import org.hibernate.cfg.naming.ImplicitNamingStrategyStandardImpl;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategyDelegatingImpl;
+import org.hibernate.cfg.naming.PhysicalNamingStrategyStandardImpl;
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.MySQLDialect;
@@ -150,7 +151,13 @@ import org.hibernate.type.Type;
 import org.hibernate.type.TypeResolver;
 import org.hibernate.usertype.CompositeUserType;
 import org.hibernate.usertype.UserType;
+
 import org.jboss.logging.Logger;
+
+import org.dom4j.Attribute;
+import org.dom4j.Document;
+import org.dom4j.DocumentException;
+import org.dom4j.Element;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 
@@ -237,7 +244,6 @@ public class Configuration implements Serializable {
 	private EntityNotFoundDelegate entityNotFoundDelegate;
 
 	protected transient XMLHelper xmlHelper;
-	protected NamingStrategy namingStrategy;
 	private SessionFactoryObserver sessionFactoryObserver;
 
 	protected final SettingsFactory settingsFactory;
@@ -268,6 +274,9 @@ public class Configuration implements Serializable {
 	private Map<XClass, Map<String, PropertyData>> propertiesAnnotatedWithIdAndToOne;
 	private CurrentTenantIdentifierResolver currentTenantIdentifierResolver;
 	private boolean specjProprietarySyntaxEnabled;
+
+	private ImplicitNamingStrategy implicitNamingStrategy;
+	private PhysicalNamingStrategy physicalNamingStrategy;
 
 
 	protected Configuration(SettingsFactory settingsFactory) {
@@ -332,7 +341,8 @@ public class Configuration implements Serializable {
 		mappedByResolver = new HashMap<String, String>();
 		propertyRefResolver = new HashMap<String, String>();
 		caches = new ArrayList<CacheHolder>();
-		namingStrategy = EJB3NamingStrategy.INSTANCE;
+		implicitNamingStrategy = ImplicitNamingStrategyStandardImpl.INSTANCE;
+		physicalNamingStrategy = PhysicalNamingStrategyStandardImpl.INSTANCE;
 		setEntityResolver( new EJB3DTDEntityResolver() );
 		anyMetaDefs = new HashMap<String, AnyMetaDef>();
 		propertiesAnnotatedWithMapsId = new HashMap<XClass, Map<String, PropertyData>>();
@@ -2375,7 +2385,15 @@ public class Configuration implements Serializable {
 	}
 
 	public NamingStrategy getNamingStrategy() {
-		return namingStrategy;
+		if ( implicitNamingStrategy == null ) {
+			return null;
+		}
+
+		if ( ImplicitNamingStrategyDelegatingImpl.class.isInstance( implicitNamingStrategy ) ) {
+			return ( (ImplicitNamingStrategyDelegatingImpl) implicitNamingStrategy ).getNamingStrategy();
+		}
+
+		return null;
 	}
 
 	/**
@@ -2386,8 +2404,26 @@ public class Configuration implements Serializable {
 	 * @return this for method chaining
 	 */
 	public Configuration setNamingStrategy(NamingStrategy namingStrategy) {
-		this.namingStrategy = namingStrategy;
+		this.implicitNamingStrategy = new ImplicitNamingStrategyDelegatingImpl( namingStrategy );
+		this.physicalNamingStrategy = new PhysicalNamingStrategyDelegatingImpl( namingStrategy );
+
 		return this;
+	}
+
+	public ImplicitNamingStrategy getImplicitNamingStrategy() {
+		return implicitNamingStrategy;
+	}
+
+	public void setImplicitNamingStrategy(ImplicitNamingStrategy implicitNamingStrategy) {
+		this.implicitNamingStrategy = implicitNamingStrategy;
+	}
+
+	public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+		return physicalNamingStrategy;
+	}
+
+	public void setPhysicalNamingStrategy(PhysicalNamingStrategy physicalNamingStrategy) {
+		this.physicalNamingStrategy = physicalNamingStrategy;
 	}
 
 	/**
@@ -2630,11 +2666,30 @@ public class Configuration implements Serializable {
 
 
 		public NamingStrategy getNamingStrategy() {
-			return namingStrategy;
+			return Configuration.this.getNamingStrategy();
 		}
 
 		public void setNamingStrategy(NamingStrategy namingStrategy) {
-			Configuration.this.namingStrategy = namingStrategy;
+			Configuration.this.setNamingStrategy( namingStrategy );
+		}
+
+		public ImplicitNamingStrategy getImplicitNamingStrategy() {
+			return Configuration.this.getImplicitNamingStrategy();
+		}
+
+		@Override
+		public void setImplicitNamingStrategy(ImplicitNamingStrategy implicitNamingStrategy) {
+			Configuration.this.setImplicitNamingStrategy( implicitNamingStrategy );
+		}
+
+		@Override
+		public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+			return Configuration.this.getPhysicalNamingStrategy();
+		}
+
+		@Override
+		public void setPhysicalNamingStrategy(PhysicalNamingStrategy physicalNamingStrategy) {
+			Configuration.this.setPhysicalNamingStrategy( physicalNamingStrategy );
 		}
 
 		public TypeResolver getTypeResolver() {
@@ -3408,7 +3463,17 @@ public class Configuration implements Serializable {
 		}
 
 		public NamingStrategy getNamingStrategy() {
-			return namingStrategy;
+			return Configuration.this.getNamingStrategy();
+		}
+
+		@Override
+		protected ImplicitNamingStrategy getLogicalNamingStrategy() {
+			return implicitNamingStrategy;
+		}
+
+		@Override
+		protected PhysicalNamingStrategy getPhysicalNamingStrategy() {
+			return physicalNamingStrategy;
 		}
 	}
 

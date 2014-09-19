@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2014, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -21,38 +21,18 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
-package org.hibernate.metamodel.source;
-
-import org.hibernate.cfg.NamingStrategy;
-import org.hibernate.cfg.naming.ImplicitNamingStrategy;
-import org.hibernate.cfg.naming.PhysicalNamingStrategy;
-import org.hibernate.internal.util.ValueHolder;
-import org.hibernate.metamodel.domain.Type;
-import org.hibernate.service.ServiceRegistry;
+package org.hibernate.cfg.naming;
 
 /**
+ * Access to explicitly specified naming information for a database table.
+ *
  * @author Steve Ebersole
  */
-public interface BindingContext {
-	public ServiceRegistry getServiceRegistry();
-
-	public NamingStrategy getNamingStrategy();
-
-	public ImplicitNamingStrategy getImplicitNamingStrategy();
-
-	public PhysicalNamingStrategy getPhysicalNamingStrategy();
-
-	public MappingDefaults getMappingDefaults();
-
-	public MetadataImplementor getMetadataImplementor();
-
-	public <T> Class<T> locateClassByName(String name);
-
-	public Type makeJavaType(String className);
-
-	public boolean isGloballyQuotedIdentifiers();
-
-	public ValueHolder<Class<?>> makeClassReference(String className);
-
-	public String qualifyClassName(String name);
+public interface ExplicitTableNameSource extends ExplicitDatabaseObjectNameSource {
+	/**
+	 * Access to the explicitly specified table name.
+	 *
+	 * @return The explicitly specified table name, or {@code null} if not specified.
+	 */
+	public String getExplicitTableName();
 }

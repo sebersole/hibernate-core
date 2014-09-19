@@ -23,6 +23,7 @@
  */
 package org.hibernate.metamodel.source.annotations.attribute;
 
+import org.hibernate.cfg.naming.ImplicitAttributeColumnNameSource;
 import org.hibernate.internal.util.StringHelper;
 
 /**
@@ -44,7 +45,14 @@ public class ColumnSourceImpl extends ColumnValuesSourceImpl {
 	protected String resolveColumnName() {
 		if ( StringHelper.isEmpty( super.getName() ) ) {
 			//no @Column defined.
-			return attribute.getContext().getNamingStrategy().propertyToColumnName( attribute.getName() );
+			return attribute.getContext().getImplicitNamingStrategy().determineAttributeColumnName(
+					new ImplicitAttributeColumnNameSource() {
+						@Override
+						public String getAttributePath() {
+							return attribute.getName();
+						}
+					}
+			);
 		}
 		else {
 			return super.getName();

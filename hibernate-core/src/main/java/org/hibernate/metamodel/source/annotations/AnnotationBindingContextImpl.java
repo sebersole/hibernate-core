@@ -35,6 +35,8 @@ import org.jboss.jandex.DotName;
 import org.jboss.jandex.Index;
 
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.internal.util.ValueHolder;
 import org.hibernate.metamodel.domain.Type;
 import org.hibernate.metamodel.source.MappingDefaults;
@@ -114,6 +116,16 @@ public class AnnotationBindingContextImpl implements AnnotationBindingContext {
 	@Override
 	public NamingStrategy getNamingStrategy() {
 		return metadata.getNamingStrategy();
+	}
+
+	@Override
+	public ImplicitNamingStrategy getImplicitNamingStrategy() {
+		return metadata.getImplicitNamingStrategy();
+	}
+
+	@Override
+	public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+		return metadata.getPhysicalNamingStrategy();
 	}
 
 	@Override

@@ -28,8 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import javax.persistence.UniqueConstraint;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.annotations.Index;
@@ -41,6 +39,11 @@ import org.hibernate.cfg.NamingStrategy;
 import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.cfg.ObjectNameSource;
 import org.hibernate.cfg.UniqueConstraintHolder;
+import org.hibernate.cfg.naming.EntityNamingSource;
+import org.hibernate.cfg.naming.ImplicitCollectionTableNameSource;
+import org.hibernate.cfg.naming.ImplicitJoinTableNameSource;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.CollectionHelper;
@@ -54,6 +57,8 @@ import org.hibernate.mapping.SimpleValue;
 import org.hibernate.mapping.Table;
 import org.hibernate.mapping.ToOne;
 import org.hibernate.mapping.Value;
+
+import org.jboss.logging.Logger;
 
 /**
  * Table related operations
@@ -78,7 +83,9 @@ public class TableBinder {
 	private String associatedEntityTable;
 	private String propertyName;
 	private String ownerEntity;
+	private String ownerJpaEntity;
 	private String associatedEntity;
+	private String associatedJpaEntity;
 	private boolean isJPA2ElementCollection;
 
 	public void setSchema(String schema) {
@@ -149,9 +156,13 @@ public class TableBinder {
 		// ownerEntity can be null when the table name is explicitly set
 		final String ownerObjectName = isJPA2ElementCollection && ownerEntity != null ?
 				StringHelper.unqualify( ownerEntity ) : unquotedOwnerTable;
+		final EntityNamingSource owningEntityNamingSource = createEntityNamingSource( ownerEntity, ownerJpaEntity );
+
 		final ObjectNameSource nameSource = buildNameContext(
-				ownerObjectName,
-				unquotedAssocTable );
+				owningEntityNamingSource,
+				unquotedOwnerTable,
+				unquotedAssocTable
+		);
 
 		final boolean ownerEntityTableQuoted = StringHelper.isQuoted( ownerEntityTable );
 		final boolean associatedEntityTableQuoted = StringHelper.isQuoted( associatedEntityTable );
@@ -171,8 +182,72 @@ public class TableBinder {
 						: strategyResult;
 			}
 
+			@Override
+			public String determineImplicitName(ImplicitNamingStrategy implicitNamingStrategy, PhysicalNamingStrategy physicalNamingStrategy) {
+
+				final String implicitName;
+				if ( isJPA2ElementCollection ) {
+					final ImplicitCollectionTableNameSource tableNameSource = new ImplicitCollectionTableNameSource() {
+						@Override
+						public String getOwningPhysicalTableName() {
+							return unquotedOwnerTable;
+						}
+
+						@Override
+						public EntityNamingSource getOwningEntityNamingSource() {
+							return owningEntityNamingSource;
+						}
+
+						@Override
+						public String getAssociationOwningAttributePath() {
+							return propertyName;
+						}
+					};
+					implicitName = implicitNamingStrategy.determineCollectionTableName( tableNameSource );
+				}
+				else {
+					final ImplicitJoinTableNameSource tableNameSource = new ImplicitJoinTableNameSource() {
+						@Override
+						public String getOwningPhysicalTableName() {
+							return unquotedOwnerTable;
+						}
+
+						@Override
+						public EntityNamingSource getOwningEntityNamingSource() {
+							return owningEntityNamingSource;
+						}
+
+						@Override
+						public String getNonOwningPhysicalTableName() {
+							return unquotedAssocTable;
+						}
+
+						@Override
+						public EntityNamingSource getNonOwningEntityNamingSource() {
+							return createEntityNamingSource( associatedEntity, associatedJpaEntity );
+						}
+
+						@Override
+						public String getAssociationOwningAttributeName() {
+							return propertyName;
+						}
+					};
+					implicitName = implicitNamingStrategy.determineJoinTableName( tableNameSource );
+				}
+
+				final String physicalName = physicalNamingStrategy.toPhysicalTableName( implicitName );
+				return ownerEntityTableQuoted || associatedEntityTableQuoted
+						? StringHelper.quote( physicalName )
+						: physicalName;
+			}
+
 			public String handleExplicitName(NamingStrategy strategy, String name) {
 				return strategy.tableName( name );
+			}
+
+			@Override
+			public String handleExplicitName(PhysicalNamingStrategy physicalNamingStrategy, String name) {
+				return physicalNamingStrategy.toPhysicalTableName( name );
 			}
 		};
 
@@ -190,18 +265,107 @@ public class TableBinder {
 		);
 	}
 
-	private ObjectNameSource buildNameContext(String unquotedOwnerTable, String unquotedAssocTable) {
-		String logicalName = mappings.getNamingStrategy().logicalCollectionTableName(
-				name,
-				unquotedOwnerTable,
-				unquotedAssocTable,
-				propertyName
-		);
+	private EntityNamingSource createEntityNamingSource(
+			final String entityClassName,
+			final String jpaEntityName) {
+		return new EntityNamingSource() {
+			@Override
+			public String getEntityClassName() {
+				return entityClassName;
+			}
+
+			@Override
+			public String getExplicitEntityName() {
+				// Does not apply to annotations.
+				return null;
+			}
+
+			@Override
+			public String getEntityName() {
+				return StringHelper.unqualifyEntityName( entityClassName );
+			}
+
+			@Override
+			public String getJpaEntityName() {
+				return jpaEntityName;
+			}
+		};
+	}
+
+	private ObjectNameSource buildNameContext(
+			final EntityNamingSource owningEntityNamingSource,
+			final String unquotedOwnerTable,
+			final String unquotedAssocTable) {
+		String logicalName = name;
+		if ( logicalName == null  ) {
+			if ( isJPA2ElementCollection ) {
+				logicalName = mappings.getImplicitNamingStrategy().determineCollectionTableName(
+						new ImplicitCollectionTableNameSource() {
+							@Override
+							public String getOwningPhysicalTableName() {
+								return unquotedOwnerTable;
+							}
+
+							@Override
+							public EntityNamingSource getOwningEntityNamingSource() {
+								return owningEntityNamingSource;
+							}
+
+							@Override
+							public String getAssociationOwningAttributePath() {
+								return propertyName;
+							}
+						}
+				);
+			}
+			else {
+				logicalName = mappings.getImplicitNamingStrategy().determineJoinTableName(
+						new ImplicitJoinTableNameSource() {
+							@Override
+							public String getOwningPhysicalTableName() {
+								return unquotedOwnerTable;
+							}
+
+							@Override
+							public EntityNamingSource getOwningEntityNamingSource() {
+								return owningEntityNamingSource;
+							}
+
+							@Override
+							public String getNonOwningPhysicalTableName() {
+								return unquotedAssocTable;
+							}
+
+							@Override
+							public EntityNamingSource getNonOwningEntityNamingSource() {
+								return createEntityNamingSource( associatedEntity, associatedJpaEntity );
+							}
+
+							@Override
+							public String getAssociationOwningAttributeName() {
+								return propertyName;
+							}
+						}
+				);
+			}
+		}
+
 		if ( StringHelper.isQuoted( ownerEntityTable ) || StringHelper.isQuoted( associatedEntityTable ) ) {
 			logicalName = StringHelper.quote( logicalName );
 		}
 
 		return new AssociationTableNameSource( name, logicalName );
+	}
+
+
+	public String logicalCollectionTableName(
+			String ownerEntityTable,
+			String associatedEntityTable,
+			String propertyName) {
+		final String associationPart = associatedEntityTable != null
+				? associatedEntityTable
+				: StringHelper.unqualify( propertyName );
+		return ownerEntityTable + '_' + associationPart;
 	}
 
 	public static Table buildAndFillTable(
@@ -556,12 +720,19 @@ public class TableBinder {
 	}
 
 	public void setDefaultName(
-			String ownerEntity, String ownerEntityTable, String associatedEntity, String associatedEntityTable,
+			String ownerEntity,
+			String ownerJpaEntity,
+			String ownerEntityTable,
+			String associatedEntity,
+			String associatedJpaEntity,
+			String associatedEntityTable,
 			String propertyName
 	) {
 		this.ownerEntity = ownerEntity;
+		this.ownerJpaEntity = ownerJpaEntity;
 		this.ownerEntityTable = ownerEntityTable;
 		this.associatedEntity = associatedEntity;
+		this.associatedJpaEntity = associatedJpaEntity;
 		this.associatedEntityTable = associatedEntityTable;
 		this.propertyName = propertyName;
 		this.name = null;

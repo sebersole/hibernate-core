@@ -37,6 +37,8 @@ import org.hibernate.annotations.JoinColumnOrFormula;
 import org.hibernate.annotations.JoinColumnsOrFormulas;
 import org.hibernate.annotations.JoinFormula;
 import org.hibernate.annotations.common.reflection.XClass;
+import org.hibernate.cfg.naming.EntityNamingSource;
+import org.hibernate.cfg.naming.ImplicitCollectionJoinColumnNameSource;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Join;
@@ -63,6 +65,7 @@ public class Ejb3JoinColumn extends Ejb3Column {
 	//table name on the mapped by side if any
 	private String mappedByTableName;
 	private String mappedByEntityName;
+	private String mappedByJpaEntityName;
 	private boolean JPA2ElementCollection;
 
 	public void setJPA2ElementCollection(boolean JPA2ElementCollection) {
@@ -444,20 +447,49 @@ public class Ejb3JoinColumn extends Ejb3Column {
 		boolean ownerSide = getPropertyName() != null;
 
 		Boolean isRefColumnQuoted = StringHelper.isQuoted( logicalReferencedColumn );
-		String unquotedLogicalReferenceColumn = isRefColumnQuoted ?
+		final String unquotedLogicalReferenceColumn = isRefColumnQuoted ?
 				StringHelper.unquote( logicalReferencedColumn ) :
 				logicalReferencedColumn;
 
 		if ( mappedBySide ) {
 			String unquotedMappedbyTable = StringHelper.unquote( mappedByTableName );
-			final String ownerObjectName = JPA2ElementCollection && mappedByEntityName != null ?
-				StringHelper.unqualify( mappedByEntityName ) : unquotedMappedbyTable;
-			columnName = getMappings().getNamingStrategy().foreignKeyColumnName(
-					mappedByPropertyName,
-					mappedByEntityName,
-					ownerObjectName,
-					unquotedLogicalReferenceColumn
-			);
+			final String ownerObjectName = JPA2ElementCollection && mappedByEntityName != null
+					? StringHelper.unqualify( mappedByEntityName )
+					: unquotedMappedbyTable;
+
+			if ( JPA2ElementCollection ) {
+				final ImplicitCollectionJoinColumnNameSource joinColumnNameSource = new ImplicitCollectionJoinColumnNameSource() {
+					@Override
+					public String getOwningPhysicalTableName() {
+						return mappedByTableName;
+					}
+
+					@Override
+					public EntityNamingSource getOwningEntityNamingSource() {
+						return createEntityNamingSource( mappedByEntityName, mappedByJpaEntityName );
+					}
+
+					@Override
+					public String getAssociationOwningAttributeName() {
+						return mappedByPropertyName;
+					}
+
+					@Override
+					public String getOwningPhysicalReferencedColumnName() {
+						return getMappings().getPhysicalNamingStrategy().toPhysicalColumnName( unquotedLogicalReferenceColumn );
+					}
+				};
+				columnName = getMappings().getImplicitNamingStrategy().determineCollectionJoinColumnName( joinColumnNameSource );
+			}
+			else {
+				// FIXME:
+				columnName = getMappings().getNamingStrategy().foreignKeyColumnName(
+						mappedByPropertyName,
+						mappedByEntityName,
+						ownerObjectName,
+						unquotedLogicalReferenceColumn
+				);
+			}
 			//one element was quoted so we quote
 			if ( isRefColumnQuoted || StringHelper.isQuoted( mappedByTableName ) ) {
 				columnName = StringHelper.quote( columnName );
@@ -491,6 +523,30 @@ public class Ejb3JoinColumn extends Ejb3Column {
 			}
 		}
 		return columnName;
+	}
+
+	private EntityNamingSource createEntityNamingSource(final String entityClassName, final String jpaEntityName) {
+		return new EntityNamingSource() {
+			@Override
+			public String getEntityClassName() {
+				return entityClassName;
+			}
+
+			@Override
+			public String getExplicitEntityName() {
+				return null;
+			}
+
+			@Override
+			public String getEntityName() {
+				return StringHelper.unqualifyEntityName( entityClassName );
+			}
+
+			@Override
+			public String getJpaEntityName() {
+				return jpaEntityName;
+			}
+		};
 	}
 
 	/**
@@ -639,7 +695,7 @@ public class Ejb3JoinColumn extends Ejb3Column {
 		if ( StringHelper.isNotEmpty( columnName ) ) {
 			getMappingColumn().setName(
 					applyNamingStrategy ?
-							getMappings().getNamingStrategy().columnName( columnName ) :
+							getMappings().getPhysicalNamingStrategy().toPhysicalColumnName( columnName ) :
 							columnName
 			);
 		}
@@ -694,8 +750,9 @@ public class Ejb3JoinColumn extends Ejb3Column {
 		return joinColumns;
 	}
 
-	public void setMappedBy(String entityName, String logicalTableName, String mappedByProperty) {
+	public void setMappedBy(String entityName, String jpaEntityName, String logicalTableName, String mappedByProperty) {
 		this.mappedByEntityName = entityName;
+		this.mappedByJpaEntityName = jpaEntityName;
 		this.mappedByTableName = logicalTableName;
 		this.mappedByPropertyName = mappedByProperty;
 	}

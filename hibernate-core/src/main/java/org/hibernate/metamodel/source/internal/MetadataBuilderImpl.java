@@ -29,6 +29,12 @@ import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.EJB3NamingStrategy;
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.ImplicitNamingStrategyDelegatingImpl;
+import org.hibernate.cfg.naming.ImplicitNamingStrategyStandardImpl;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategyDelegatingImpl;
+import org.hibernate.cfg.naming.PhysicalNamingStrategyStandardImpl;
 import org.hibernate.metamodel.Metadata;
 import org.hibernate.metamodel.MetadataBuilder;
 import org.hibernate.metamodel.MetadataSourceProcessingOrder;
@@ -50,7 +56,7 @@ public class MetadataBuilderImpl implements MetadataBuilder {
 
 	@Override
 	public MetadataBuilder with(NamingStrategy namingStrategy) {
-		this.options.namingStrategy = namingStrategy;
+		this.options.setNamingStrategy( namingStrategy );
 		return this;
 	}
 
@@ -85,7 +91,9 @@ public class MetadataBuilderImpl implements MetadataBuilder {
 
 	private static class OptionsImpl implements Metadata.Options {
 		private MetadataSourceProcessingOrder metadataSourceProcessingOrder = MetadataSourceProcessingOrder.HBM_FIRST;
-		private NamingStrategy namingStrategy = EJB3NamingStrategy.INSTANCE;
+		private ImplicitNamingStrategy implicitNamingStrategy = ImplicitNamingStrategyStandardImpl.INSTANCE;
+		private PhysicalNamingStrategy physicalNamingStrategy = PhysicalNamingStrategyStandardImpl.INSTANCE;
+
 		private SharedCacheMode sharedCacheMode = SharedCacheMode.ENABLE_SELECTIVE;
 		private AccessType defaultCacheAccessType;
         private boolean useNewIdentifierGenerators;
@@ -160,7 +168,33 @@ public class MetadataBuilderImpl implements MetadataBuilder {
 
 		@Override
 		public NamingStrategy getNamingStrategy() {
-			return namingStrategy;
+			if ( implicitNamingStrategy == null ) {
+				return null;
+			}
+
+			if ( ImplicitNamingStrategyDelegatingImpl.class.isInstance( implicitNamingStrategy ) ) {
+				return ( (ImplicitNamingStrategyDelegatingImpl) implicitNamingStrategy ).getNamingStrategy();
+			}
+
+			return null;
+		}
+
+		public void setNamingStrategy(NamingStrategy namingStrategy) {
+			this.implicitNamingStrategy = new ImplicitNamingStrategyDelegatingImpl( namingStrategy );
+			this.physicalNamingStrategy = new PhysicalNamingStrategyDelegatingImpl( namingStrategy );
+		}
+
+
+		@Override
+		public ImplicitNamingStrategy getImplicitNamingStrategy() {
+			return implicitNamingStrategy;
+		}
+
+
+
+		@Override
+		public PhysicalNamingStrategy getPhysicalNamingStrategy() {
+			return physicalNamingStrategy;
 		}
 
 		@Override

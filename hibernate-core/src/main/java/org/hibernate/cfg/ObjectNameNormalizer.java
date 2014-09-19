@@ -23,6 +23,8 @@
  */
 package org.hibernate.cfg;
 
+import org.hibernate.cfg.naming.ImplicitNamingStrategy;
+import org.hibernate.cfg.naming.PhysicalNamingStrategy;
 import org.hibernate.internal.util.StringHelper;
 
 /**
@@ -42,8 +44,23 @@ public abstract class ObjectNameNormalizer {
 		 * @param strategy The naming strategy in effect
 		 *
 		 * @return The implicit name
+		 *
+		 * @deprecated Replaced by {@link #determineImplicitName(org.hibernate.cfg.naming.ImplicitNamingStrategy, org.hibernate.cfg.naming.PhysicalNamingStrategy)}
 		 */
+		@Deprecated
 		public String determineImplicitName(NamingStrategy strategy);
+
+		/**
+		 * Called when the user supplied no explicit name/identifier for the given database object.
+		 *
+		 * @param implicitNamingStrategy The logical naming strategy in effect
+		 * @param physicalNamingStrategy The physical naming strategy in effect
+		 *
+		 * @return The implicit name
+		 */
+		public String determineImplicitName(
+				ImplicitNamingStrategy implicitNamingStrategy,
+				PhysicalNamingStrategy physicalNamingStrategy);
 
 		/**
 		 * Called when the user has supplied an explicit name for the database object.
@@ -52,8 +69,22 @@ public abstract class ObjectNameNormalizer {
 		 * @param name The {@link ObjectNameNormalizer#normalizeIdentifierQuoting normalized} explicit object name.
 		 *
 		 * @return The strategy-handled name.
+		 *
+		 * @deprecated Replaced by {@link #handleExplicitName(org.hibernate.cfg.naming.PhysicalNamingStrategy, String)}
 		 */
+		@Deprecated
 		public String handleExplicitName(NamingStrategy strategy, String name);
+
+		/**
+		 * Called when the user has supplied an explicit name for the database object.
+		 *
+		 * @param physicalNamingStrategy The physical naming strategy in effect
+		 * @param name The {@link ObjectNameNormalizer#normalizeIdentifierQuoting normalized} explicit object name.
+		 *
+		 * @return The strategy-handled name.
+		 */
+		public String handleExplicitName(PhysicalNamingStrategy physicalNamingStrategy, String name);
+
 	}
 
 	/**
@@ -70,14 +101,14 @@ public abstract class ObjectNameNormalizer {
 		if ( StringHelper.isEmpty( explicitName ) ) {
 			// No explicit name given, so allow the naming strategy the chance
 			//    to determine it based on the corresponding mapped java name
-			objectName = helper.determineImplicitName( getNamingStrategy() );
+			objectName = helper.determineImplicitName( getLogicalNamingStrategy(), getPhysicalNamingStrategy() );
 		}
 		else {
 			// An explicit name was given:
 			//    in some cases we allow the naming strategy to "fine tune" these, but first
 			//    handle any quoting for consistent handling in naming strategies
 			objectName = normalizeIdentifierQuoting( explicitName );
-			objectName = helper.handleExplicitName( getNamingStrategy(), objectName );
+			objectName = helper.handleExplicitName( getPhysicalNamingStrategy(), objectName );
 			return normalizeIdentifierQuoting( objectName );
 		}
         // Conceivable that the naming strategy could return a quoted identifier, or
@@ -134,6 +165,24 @@ public abstract class ObjectNameNormalizer {
 	 * Get the current {@link NamingStrategy}.
 	 *
 	 * @return The current {@link NamingStrategy}.
+	 *
+	 * @deprecated Replaced by {@link #getLogicalNamingStrategy} and
+	 * {@link #getPhysicalNamingStrategy}.
 	 */
+	@Deprecated
 	protected abstract NamingStrategy getNamingStrategy();
+
+	/**
+	 * Get the current {@link org.hibernate.cfg.naming.ImplicitNamingStrategy}.
+	 *
+	 * @return The current {@link org.hibernate.cfg.naming.ImplicitNamingStrategy}.
+	 */
+	protected abstract ImplicitNamingStrategy getLogicalNamingStrategy();
+
+	/**
+	 * Get the current {@link PhysicalNamingStrategy}.
+	 *
+	 * @return The current {@link PhysicalNamingStrategy}.
+	 */
+	protected abstract PhysicalNamingStrategy getPhysicalNamingStrategy();
 }

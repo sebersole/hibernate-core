@@ -24,23 +24,20 @@
 package org.hibernate.cfg;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
-import org.dom4j.Attribute;
-import org.dom4j.Document;
-import org.dom4j.Element;
-import org.jboss.logging.Logger;
-
 import org.hibernate.CacheMode;
 import org.hibernate.EntityMode;
 import org.hibernate.FetchMode;
 import org.hibernate.FlushMode;
 import org.hibernate.MappingException;
+import org.hibernate.cfg.naming.EntityNamingSource;
+import org.hibernate.cfg.naming.ImplicitAttributeColumnNameSource;
+import org.hibernate.cfg.naming.ImplicitCollectionTableNameSource;
 import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.FilterDefinition;
@@ -100,6 +97,12 @@ import org.hibernate.type.BasicType;
 import org.hibernate.type.DiscriminatorType;
 import org.hibernate.type.ForeignKeyDirection;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
+
+import org.dom4j.Attribute;
+import org.dom4j.Document;
+import org.dom4j.Element;
 
 /**
  * Walks an XML mapping document and produces the Hibernate configuration-time metamodel (the
@@ -874,23 +877,25 @@ public final class HbmBinder {
 	private static String getClassTableName(
 			PersistentClass model,
 			Element node,
-			String schema,
-			String catalog,
+			final String schema,
+			final String catalog,
 			Table denormalizedSuperTable,
 			Mappings mappings) {
-		Attribute tableNameNode = node.attribute( "table" );
-		String logicalTableName;
-		String physicalTableName;
+		final String registrationName;
+		final String physicalName;
+
+		final Attribute tableNameNode = node.attribute( "table" );
 		if ( tableNameNode == null ) {
-			logicalTableName = StringHelper.unqualify( model.getEntityName() );
-			physicalTableName = mappings.getNamingStrategy().classToTableName( model.getEntityName() );
+			registrationName = StringHelper.unqualify( model.getEntityName() );
+			final String implicitName = mappings.getImplicitNamingStrategy().determinePrimaryTableName( model );
+			physicalName = mappings.getPhysicalNamingStrategy().toPhysicalTableName( implicitName );
 		}
 		else {
-			logicalTableName = tableNameNode.getValue();
-			physicalTableName = mappings.getNamingStrategy().tableName( logicalTableName );
+			registrationName = tableNameNode.getValue();
+			physicalName = mappings.getPhysicalNamingStrategy().toPhysicalTableName( registrationName );
 		}
-		mappings.addTableBinding( schema, catalog, logicalTableName, physicalTableName, denormalizedSuperTable );
-		return physicalTableName;
+		mappings.addTableBinding( schema, catalog, registrationName, physicalName, denormalizedSuperTable );
+		return physicalName;
 	}
 
 	public static void bindJoinedSubclass(Element node, JoinedSubclass joinedSubclass,
@@ -1068,11 +1073,21 @@ public final class HbmBinder {
 					column.setTypeIndex( count++ );
 					bindColumn( columnElement, column, isNullable );
 					final String columnName = columnElement.attributeValue( "name" );
-					String logicalColumnName = mappings.getNamingStrategy().logicalColumnName(
-							columnName, propertyPath
-					);
-					column.setName( mappings.getNamingStrategy().columnName(
-						columnName ) );
+					final String logicalColumnName;
+					if ( columnName != null ) {
+						logicalColumnName = columnName;
+					}
+					else {
+						logicalColumnName = mappings.getImplicitNamingStrategy().determineAttributeColumnName(
+								new ImplicitAttributeColumnNameSource() {
+									@Override
+									public String getAttributePath() {
+										return propertyPath;
+									}
+								}
+						);
+					}
+					column.setName( mappings.getPhysicalNamingStrategy().toPhysicalColumnName( logicalColumnName ) );
 					if ( table != null ) {
 						table.addColumn( column ); // table=null -> an association
 						                           // - fill it in later
@@ -1122,11 +1137,21 @@ public final class HbmBinder {
 			if ( column.isUnique() && ManyToOne.class.isInstance( simpleValue ) ) {
 				( (ManyToOne) simpleValue ).markAsLogicalOneToOne();
 			}
-			final String columnName = columnAttribute.getValue();
-			String logicalColumnName = mappings.getNamingStrategy().logicalColumnName(
-					columnName, propertyPath
-			);
-			column.setName( mappings.getNamingStrategy().columnName( columnName ) );
+			final String logicalColumnName;
+			if ( columnAttribute.getValue() == null ) {
+				logicalColumnName = mappings.getImplicitNamingStrategy().determineAttributeColumnName(
+						new ImplicitAttributeColumnNameSource() {
+							@Override
+							public String getAttributePath() {
+								return propertyPath;
+							}
+						}
+				);
+			}
+			else {
+				logicalColumnName = columnAttribute.getValue();
+			}
+			column.setName( mappings.getPhysicalNamingStrategy().toPhysicalColumnName( logicalColumnName ) );
 			if ( table != null ) {
 				table.addColumn( column ); // table=null -> an association - fill
 				                           // it in later
@@ -1142,9 +1167,16 @@ public final class HbmBinder {
 			Column column = new Column();
 			column.setValue( simpleValue );
 			bindColumn( node, column, isNullable );
-			column.setName( mappings.getNamingStrategy().propertyToColumnName( propertyPath ) );
-			String logicalName = mappings.getNamingStrategy().logicalColumnName( null, propertyPath );
-			mappings.addColumnBinding( logicalName, column, table );
+			String logicalColumnName = mappings.getImplicitNamingStrategy().determineAttributeColumnName(
+					new ImplicitAttributeColumnNameSource() {
+						@Override
+						public String getAttributePath() {
+							return propertyPath;
+						}
+					}
+			);
+			column.setName( mappings.getPhysicalNamingStrategy().toPhysicalColumnName( logicalColumnName ) );
+			mappings.addColumnBinding( logicalColumnName, column, table );
 			/* TODO: joinKeyColumnName & foreignKeyColumnName should be called either here or at a
 			 * slightly higer level in the stack (to get all the information we need)
 			 * Right now HbmMetadataSourceProcessorImpl does not support the
@@ -1368,8 +1400,8 @@ public final class HbmBinder {
 	/**
 	 * Called for all collections
 	 */
-	public static void bindCollection(Element node, Collection collection, String className,
-			String path, Mappings mappings, java.util.Map inheritedMetas) throws MappingException {
+	public static void bindCollection(Element node, final Collection collection, String className,
+			final String path, Mappings mappings, java.util.Map inheritedMetas) throws MappingException {
 
 		// ROLENAME
 		collection.setRole(path);
@@ -1467,21 +1499,56 @@ public final class HbmBinder {
 			Attribute tableNode = node.attribute( "table" );
 			String tableName;
 			if ( tableNode != null ) {
-				tableName = mappings.getNamingStrategy().tableName( tableNode.getValue() );
+				tableName = mappings.getPhysicalNamingStrategy().toPhysicalTableName( tableNode.getValue() );
 			}
 			else {
 				//tableName = mappings.getNamingStrategy().propertyToTableName( className, path );
 				Table ownerTable = collection.getOwner().getTable();
 				//TODO mappings.getLogicalTableName(ownerTable)
-				String logicalOwnerTableName = ownerTable.getName();
-				//FIXME we don't have the associated entity table name here, has to be done in a second pass
-				tableName = mappings.getNamingStrategy().collectionTableName(
-						collection.getOwner().getEntityName(),
-						logicalOwnerTableName ,
-						null,
-						null,
-						path
+				final String physicalOwnerTableName = mappings.getPhysicalNamingStrategy().toPhysicalTableName(
+						ownerTable.getName()
 				);
+				//FIXME we don't have the associated entity table name here, has to be done in a second pass
+				// for now, assume this is a collection of element or composite-element
+				// TODO: make sure this really does get fixed up in the second pass
+				final ImplicitCollectionTableNameSource tableNameSource = new ImplicitCollectionTableNameSource() {
+					@Override
+					public String getOwningPhysicalTableName() {
+						return physicalOwnerTableName;
+					}
+
+					@Override
+					public EntityNamingSource getOwningEntityNamingSource() {
+						return new EntityNamingSource() {
+							@Override
+							public String getEntityClassName() {
+								return collection.getOwner().getClassName();
+							}
+
+							@Override
+							public String getExplicitEntityName() {
+								return collection.getOwner().getExplicitEntityName();
+							}
+
+							@Override
+							public String getEntityName() {
+								return StringHelper.unqualifyEntityName( collection.getOwner().getEntityName() );
+							}
+
+							@Override
+							public String getJpaEntityName() {
+								return null;
+							}
+						};
+					}
+
+					@Override
+					public String getAssociationOwningAttributePath() {
+						return path;
+					}
+				};
+				tableName = mappings.getImplicitNamingStrategy().determineCollectionTableName( tableNameSource );
+
 				if ( ownerTable.isQuoted() ) {
 					tableName = StringHelper.quote( tableName );
 				}

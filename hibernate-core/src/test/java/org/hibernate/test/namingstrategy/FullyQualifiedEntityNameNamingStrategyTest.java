@@ -25,20 +25,19 @@ package org.hibernate.test.namingstrategy;
 
 import java.util.Iterator;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.EJB3NamingStrategy;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.ForeignKey;
 import org.hibernate.mapping.PersistentClass;
-import org.hibernate.testing.FailureExpected;
+
 import org.hibernate.testing.TestForIssue;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
-
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class FullyQualifiedEntityNameNamingStrategyTest extends BaseCoreFunctionalTestCase {
 	@Override
@@ -54,7 +53,6 @@ public class FullyQualifiedEntityNameNamingStrategyTest extends BaseCoreFunction
 
 	@Test
 	@TestForIssue(jiraKey = "HHH-4312")
-	@FailureExpected(jiraKey = "HHH-4312")
 	public void testEntityTable() throws Exception {
 		final PersistentClass classMapping = configuration().getClassMapping( Workflow.class.getName() );
 		final String expectedTableName = transformEntityName( Workflow.class.getName() );
