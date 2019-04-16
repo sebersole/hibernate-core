@@ -22,6 +22,12 @@
  * Boston, MA  02110-1301  USA
  *
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.tuple.entity;
 import java.io.Serializable;
 import java.util.Map;
@@ -257,6 +263,19 @@ public interface EntityTuplizer extends Tuplizer {
 	 * @return {@code true} if the entity class is instrumented; {@code false} otherwise.
 	 */
 	public boolean isInstrumented();
+	
+
+	// BM-Patch start:
+	/**
+	 * Is the particular property of the given entity initialized? 
+	 *
+	 * @param entity The entity to which the property belongs.
+	 * @param propertyName The name of the property for which the initialization state is checked.
+	 * @return True if the property is initialized else false.
+	 * @throws HibernateException	 
+	 */
+	public boolean isPropertyInitialized(Object entity, String propertyName);
+	// BM-Patch :end
 
 	/**
 	 * Get any {@link EntityNameResolver EntityNameResolvers} associated with this {@link Tuplizer}.

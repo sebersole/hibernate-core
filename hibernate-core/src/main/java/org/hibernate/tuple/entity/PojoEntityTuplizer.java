@@ -21,6 +21,12 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.tuple.entity;
 
 import java.lang.reflect.Method;
@@ -506,9 +512,10 @@ public class PojoEntityTuplizer extends AbstractEntityTuplizer {
     public void afterInitialize(Object entity, boolean lazyPropertiesAreUnfetched, SessionImplementor session) {
 		if ( isInstrumented() ) {
 			Set lazyProps = lazyPropertiesAreUnfetched && getEntityMetamodel().hasLazyProperties() ?
-					lazyPropertyNames : null;
-			//TODO: if we support multiple fetch groups, we would need
-			//      to clone the set of lazy properties!
+					// BM-Patch - orig: lazyPropertyNames : null;
+					new HashSet(lazyPropertyNames)  : null; // <-- BM-Patch
+			//BM-Patch: This todo is obsolete now - TODO: if we support multiple fetch groups, we would need
+			//      									to clone the set of lazy properties!
 			FieldInterceptionHelper.injectFieldInterceptor( entity, getEntityName(), lazyProps, session );
 
             //also clear the fields that are marked as dirty in the dirtyness tracker
@@ -532,6 +539,17 @@ public class PojoEntityTuplizer extends AbstractEntityTuplizer {
 		}
 	}
 
+	// BM-Patch start:
+	public boolean isPropertyInitialized(Object entity, String propertyName) {
+		if (getEntityMetamodel().hasLazyProperties()) {
+			FieldInterceptor callback = FieldInterceptionHelper.extractFieldInterceptor( entity );
+			return callback != null && callback.isInitialized(propertyName);			
+		} else {
+			return true;
+		}
+	}
+	// BM-Patch :end
+	
 	/**
 	 * {@inheritDoc}
 	 */

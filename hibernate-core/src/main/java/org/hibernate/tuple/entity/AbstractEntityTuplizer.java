@@ -21,6 +21,12 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.tuple.entity;
 
 import java.io.Serializable;
@@ -605,7 +611,9 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 
 		for ( int j = 0; j < span; j++ ) {
 			StandardProperty property = entityMetamodel.getProperties()[j];
-			if ( getAll || !property.isLazy() ) {
+			// BM-Patch - orig: if ( getAll || !property.isLazy() ) {
+			if ( isPropertyInitialized(entity, property.getName())) { // <-- BM-Patch
+
 				result[j] = getters[j].get( entity );
 			}
 			else {
@@ -744,6 +752,13 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		// the default is to simply not lazy fetch properties for now...
 		return false;
 	}
+
+	// BM-Patch start:
+	public boolean isPropertyInitialized(Object entity, String propertyName) {
+		// the default is there are no lazy properties...
+		return true;
+	}
+	// BM-Patch :end
 
 	public final boolean isInstance(Object object) {
         return getInstantiator().isInstance( object );

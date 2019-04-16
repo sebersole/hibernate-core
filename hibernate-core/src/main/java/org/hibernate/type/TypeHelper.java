@@ -21,6 +21,12 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.type;
 import java.io.Serializable;
 import java.util.Map;
@@ -308,7 +314,7 @@ public class TypeHelper {
 
 		for ( int i = 0; i < span; i++ ) {
 			final boolean dirty = currentState[i] != LazyPropertyInitializer.UNFETCHED_PROPERTY
-					&& properties[i].isDirtyCheckable( anyUninitializedProperties )
+					// BM-Patch - commented out: && properties[i].isDirtyCheckable( anyUninitializedProperties )
 					&& properties[i].getType().isDirty( previousState[i], currentState[i], includeColumns[i], session );
 			if ( dirty ) {
 				if ( results == null ) {

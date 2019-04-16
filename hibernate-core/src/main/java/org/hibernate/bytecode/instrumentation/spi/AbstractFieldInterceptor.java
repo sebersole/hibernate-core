@@ -21,6 +21,12 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.bytecode.instrumentation.spi;
 import java.io.Serializable;
 import java.util.Set;
@@ -99,7 +105,13 @@ public abstract class AbstractFieldInterceptor implements FieldInterceptor, Seri
 			finally {
 				initializing = false;
 			}
-			uninitializedFields = null; //let's assume that there is only one lazy fetch group, for now!
+			
+			// BM-Patch start:
+			uninitializedFields.remove(fieldName);
+			// For compatibility with older code.
+			if (uninitializedFields.size() == 0) uninitializedFields = null;
+
+			// BM-Patch :end  uninitializedFields = null; //let's assume that there is only one lazy fetch group, for now!
 			return result;
 		}
 		else {

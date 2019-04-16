@@ -21,6 +21,12 @@
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
  */
+/*
+ * Dirk Detering 2014-03-07 : This Source contains BITMARCK changes related to: 
+ * 			Proper handling of lazy one-to-one relations (Sourcecode changed)
+ * (Changes taken from former patchwork done on Hibernate 3.2.6 (15.09.2009) and 3.3.2 at BITMARCK)
+ */
+
 package org.hibernate.persister.entity;
 
 import java.io.Serializable;
@@ -1269,10 +1275,12 @@ public abstract class AbstractEntityPersister
 					}
 					final Object[] snapshot = entry.getLoadedState();
 					for ( int j = 0; j < lazyPropertyNames.length; j++ ) {
-						Object propValue = lazyPropertyTypes[j].nullSafeGet( rs, lazyPropertyColumnAliases[j], session, entity );
-						if ( initializeLazyProperty( fieldName, entity, session, snapshot, j, propValue ) ) {
-							result = propValue;
-						}
+						if (lazyPropertyNames[j].equals(fieldName)) { // <--- BM-Patch 
+							Object propValue = lazyPropertyTypes[j].nullSafeGet( rs, lazyPropertyColumnAliases[j], session, entity );
+							if ( initializeLazyProperty( fieldName, entity, session, snapshot, j, propValue ) ) {
+								result = propValue;
+							}
+						} // <--- BM-Patch
 					}
 				}
 				finally {
@@ -1316,14 +1324,16 @@ public abstract class AbstractEntityPersister
 		Serializable[] disassembledValues = cacheEntry.getDisassembledState();
 		final Object[] snapshot = entry.getLoadedState();
 		for ( int j = 0; j < lazyPropertyNames.length; j++ ) {
-			final Object propValue = lazyPropertyTypes[j].assemble(
-					disassembledValues[ lazyPropertyNumbers[j] ],
-					session,
-					entity
-				);
-			if ( initializeLazyProperty( fieldName, entity, session, snapshot, j, propValue ) ) {
-				result = propValue;
-			}
+			if (lazyPropertyNames[j].equals(fieldName)) { // <--- BM-Patch 
+				final Object propValue = lazyPropertyTypes[j].assemble(
+						disassembledValues[ lazyPropertyNumbers[j] ],
+						session,
+						entity
+					);
+				if ( initializeLazyProperty( fieldName, entity, session, snapshot, j, propValue ) ) {
+					result = propValue;
+				}
+			} // <--- BM-Patch 
 		}
 
 		LOG.trace( "Done initializing lazy properties" );
@@ -3422,7 +3432,12 @@ public abstract class AbstractEntityPersister
 		if ( entry == null && ! isMutable() ) {
 			throw new IllegalStateException( "Updating immutable entity that is not in session yet!" );
 		}
-		if ( ( entityMetamodel.isDynamicUpdate() && dirtyFields != null ) ) {
+		// BM-Patch - orig:  if ( ( entityMetamodel.isDynamicUpdate() && dirtyFields != null ) ) {
+		// BM Patch start:
+		// If uninitializedLazyProperties exist we always use dynamic updates.
+		if ( (entityMetamodel.isDynamicUpdate() || hasUninitializedLazyProperties( object ))  //DET: Original Patch had second param: session.getEntityMode() - seems obsolete now 
+				&& dirtyFields != null ) {
+        // BM Patch :end
 			// We need to generate the UPDATE SQL when dynamic-update="true"
 			propsToUpdate = getPropertiesToUpdate( dirtyFields, hasDirtyCollection );
 			// don't need to check laziness (dirty checking algorithm handles that)
