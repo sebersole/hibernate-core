@@ -33,4 +33,14 @@ public class JavassistInstrumentationTest extends AbstractTransformingClassLoade
 	protected BytecodeProvider buildBytecodeProvider() {
 		return new BytecodeProviderImpl();
 	}
+
+	@Override
+	public void testComplexLazyGraph() {
+		super.testComplexLazyGraph();
+	}
+
+	@Override
+	public void testComplexLazyGraphHbm() {
+		super.testComplexLazyGraphHbm();
+	}
 }

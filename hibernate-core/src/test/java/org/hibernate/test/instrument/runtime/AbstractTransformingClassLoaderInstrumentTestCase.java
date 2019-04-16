@@ -147,7 +147,17 @@ public abstract class AbstractTransformingClassLoaderInstrumentTestCase extends 
     @SkipForDialect( value = MySQLDialect.class, comment = "wrong sql in mapping, mysql needs double type, but it is float type in mapping")
 	public void testCustomColumnReadAndWrite() {
 		executeExecutable( "org.hibernate.test.instrument.cases.TestCustomColumnReadAndWrite" );
-	}	
+	}
+
+	@Test
+	public void testComplexLazyGraph() {
+		executeExecutable( "org.hibernate.test.instrument.cases.ComplexLazyGraphExecutable" );
+	}
+
+	@Test
+	public void testComplexLazyGraphHbm() {
+		executeExecutable( "org.hibernate.test.instrument.cases.ComplexLazyGraphHbmExecutable" );
+	}
 
 	// reflection code to ensure isolation into the created classloader ~~~~~~~
 
