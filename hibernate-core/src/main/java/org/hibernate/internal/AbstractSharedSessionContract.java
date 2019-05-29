@@ -62,6 +62,7 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.engine.transaction.internal.TransactionImpl;
 import org.hibernate.engine.transaction.spi.TransactionImplementor;
 import org.hibernate.id.uuid.StandardRandomStrategy;
+import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jpa.internal.util.FlushModeTypeHelper;
 import org.hibernate.jpa.spi.NativeQueryTupleTransformer;
 import org.hibernate.jpa.spi.TupleBuilderTransformer;
@@ -84,6 +85,8 @@ import org.hibernate.resource.transaction.spi.TransactionCoordinatorBuilder;
 import org.hibernate.type.Type;
 import org.hibernate.type.descriptor.sql.SqlTypeDescriptor;
 
+import org.jboss.logging.MDC;
+
 /**
  * Base class for SharedSessionContract/SharedSessionContractImplementor
  * implementations.  Intended for Session and StatelessSession implementations
@@ -104,9 +107,12 @@ import org.hibernate.type.descriptor.sql.SqlTypeDescriptor;
 @SuppressWarnings("WeakerAccess")
 public abstract class AbstractSharedSessionContract implements SharedSessionContractImplementor {
 	private static final EntityManagerMessageLogger log = HEMLogging.messageLogger( SessionImpl.class );
+	private static final String UUID_MDC_CFG_KEY = "hibernate.session.push_uuid_to_mdc";
+	private static final String UUID_MDC_KEY = "hibernateSessionUuid";
 
 	private transient SessionFactoryImpl factory;
 	private final String tenantIdentifier;
+	private final boolean storeUuidInMdc;
 	private UUID sessionIdentifier;
 
 	private transient JdbcConnectionAccess jdbcConnectionAccess;
@@ -207,6 +213,11 @@ public abstract class AbstractSharedSessionContract implements SharedSessionCont
 					.buildTransactionCoordinator( jdbcCoordinator, this );
 		}
 		exceptionConverter = new ExceptionConverterImpl( this );
+
+		this.storeUuidInMdc = ConfigurationHelper.getBoolean( UUID_MDC_CFG_KEY, factory.getProperties(), false );
+		if ( storeUuidInMdc ) {
+			MDC.put( UUID_MDC_KEY, getSessionIdentifier() );
+		}
 	}
 
 	protected void addSharedSessionTransactionObserver(TransactionCoordinator transactionCoordinator) {
@@ -336,6 +347,10 @@ public abstract class AbstractSharedSessionContract implements SharedSessionCont
 		closed = true;
 		waitingForAutoClose = false;
 		cleanupOnClose();
+
+		if ( storeUuidInMdc ) {
+			MDC.remove( UUID_MDC_KEY );
+		}
 	}
 
 	protected boolean shouldCloseJdbcCoordinatorOnClose(boolean isTransactionCoordinatorShared) {
